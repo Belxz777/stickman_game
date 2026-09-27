@@ -268,6 +268,7 @@ export interface GameSettings {
   // Attack System
   autoRangedShootOnMove: boolean;
   autoMeleeOnContact: boolean;
+  autoFireCooldownMultiplier: number; // Controls fire rate when holding movement keys (e.g., holding D or A)
   cameraShakeIntensity: number;
 }
 
@@ -291,5 +292,6 @@ export const DEFAULT_GAME_SETTINGS: GameSettings = {
   lockedMapId: 'castle_bridge',
   autoRangedShootOnMove: true,
   autoMeleeOnContact: true,
+  autoFireCooldownMultiplier: 1.3,
   cameraShakeIntensity: 1.0,
 };

@@ -326,7 +326,7 @@ export default function App() {
           // Set customizable gravity (Requirement 1)
           setGravity(settings.gravity);
 
-          // Physics updates with custom multipliers
+          // Physics updates with custom multipliers and auto-fire delay
           updatePlayer(
             p1,
             p1Input,
@@ -339,7 +339,8 @@ export default function App() {
             settings.moveSpeedMultiplier,
             settings.jumpForceMultiplier,
             settings.damageMultiplier,
-            settings.cooldownMultiplier
+            settings.cooldownMultiplier,
+            settings.autoFireCooldownMultiplier
           );
 
           updatePlayer(
@@ -354,7 +355,8 @@ export default function App() {
             settings.moveSpeedMultiplier,
             settings.jumpForceMultiplier,
             settings.damageMultiplier,
-            settings.cooldownMultiplier
+            settings.cooldownMultiplier,
+            settings.autoFireCooldownMultiplier
           );
 
           updateMeteorites(

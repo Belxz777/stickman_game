@@ -180,7 +180,8 @@ export function updatePlayer(
   moveSpeedMult: number = 1.0,
   jumpForceMult: number = 1.0,
   damageMult: number = 1.0,
-  cooldownMult: number = 1.0
+  cooldownMult: number = 1.0,
+  autoFireCooldownMult: number = 1.3
 ): void {
   if (player.isDead) {
     updateRagdoll(player, map, dt);
@@ -196,12 +197,12 @@ export function updatePlayer(
   if (input.left) {
     player.vx -= speed * 0.45;
     player.facing = -1;
-    player.runCycle += 0.22;
+    player.runCycle += 0.22 * moveSpeedMult;
   }
   if (input.right) {
     player.vx += speed * 0.45;
     player.facing = 1;
-    player.runCycle += 0.22;
+    player.runCycle += 0.22 * moveSpeedMult;
   }
 
   // Cap horizontal speed
@@ -420,7 +421,7 @@ export function updatePlayer(
     }
   }
 
-  // 5. Automatic Attack System (Requirement: Melee on contact, Ranged auto-fire on move)
+  // 5. Automatic Attack System (Requirement: Melee on contact, Ranged auto-fire on move with configurable speed/delay)
   if (player.attackCooldown <= 0 && !player.attacking) {
     if (player.weapon.type === 'melee' || player.weapon.type === 'fists') {
       // Melee: auto-trigger on contact
@@ -431,95 +432,140 @@ export function updatePlayer(
          executeAttack(player, opponent, projectiles, particles, shakeRef, damageMult, cooldownMult);
       }
     } else if (player.weapon.type === 'ranged') {
-      // Ranged: auto-fire with delay when moving
+      // Ranged: auto-fire with configurable cooldown multiplier when moving
       if (input.left || input.right || input.up) {
-        // Simple delay based on weapon cooldown
-        executeAttack(player, opponent, projectiles, particles, shakeRef, damageMult, cooldownMult);
+        executeAttack(
+          player,
+          opponent,
+          projectiles,
+          particles,
+          shakeRef,
+          damageMult,
+          cooldownMult * autoFireCooldownMult
+        );
       }
     }
   }
 
-  // Update animated joints to follow stickman body
+  // Update animated joints with procedural physics-driven kinematics
   updateJointsFromPlayer(player);
 }
 
+// Procedural Animation System: Dynamically calculates joint angles and trajectories based on velocity & physics state
 function updateJointsFromPlayer(player: Player): void {
   const x = player.x;
   const y = player.y;
-  const time = Date.now() / 120;
-  const isMoving = Math.abs(player.vx) > 0.4;
-  const isJumping = !player.isGrounded && player.vy < 0;
-  const isFalling = !player.isGrounded && player.vy >= 0;
+  const vx = player.vx;
+  const vy = player.vy;
+  const facing = player.facing;
+  const isGrounded = player.isGrounded;
+  const time = Date.now() / 110;
 
-  // Head, Chest, Pelvis movement
-  const leanForward = isMoving ? player.facing * 4 : 0;
-  player.joints.head.x = x + leanForward * 0.8;
-  player.joints.head.y = y - 26 + (isMoving ? Math.sin(time * 2) * 2 : Math.sin(time) * 1.5);
+  const hSpeed = Math.abs(vx);
+  const speedRatio = Math.min(2.0, hSpeed / 4.8);
+  const isMoving = hSpeed > 0.3;
+  const isJumping = !isGrounded && vy < -0.8;
+  const isFalling = !isGrounded && vy >= -0.8;
 
-  player.joints.chest.x = x + leanForward * 0.5;
-  player.joints.chest.y = y - 10 + (isMoving ? Math.cos(time * 2) * 1.5 : 0);
+  // 1. Procedural Torso Lean and Aerodynamic Tilt
+  // Running leans into motion; in air, body pitches along velocity vector
+  const moveLean = isGrounded ? (vx / 6.0) * 8 : (vx / 8.0) * 12;
+  const flightPitch = !isGrounded ? Math.max(-0.4, Math.min(0.4, (vy / 14.0) * 0.35 * facing)) : 0;
+
+  player.joints.head.x = x + moveLean * 0.9 + Math.sin(flightPitch) * 4;
+  player.joints.head.y = y - 26 + (isMoving && isGrounded ? Math.sin(player.runCycle * 2) * 1.5 : Math.sin(time) * 1.2);
+
+  player.joints.chest.x = x + moveLean * 0.5;
+  player.joints.chest.y = y - 10 + (isMoving && isGrounded ? Math.cos(player.runCycle * 2) * 1.2 : 0);
 
   player.joints.pelvis.x = x;
-  player.joints.pelvis.y = y + 6;
+  player.joints.pelvis.y = y + 6 + (isGrounded && isMoving ? Math.abs(Math.sin(player.runCycle)) * 1.8 : 0);
 
-  // Dynamic Leg Animations
-  const legSwing = Math.sin(player.runCycle) * 18;
-  const legLift = Math.abs(Math.cos(player.runCycle)) * 6;
-
+  // 2. Procedural Leg & Foot Kinematics
   if (isJumping) {
-    // Jump Up / Launch: Knees tuck up towards body
-    player.joints.leftFoot.x = x - 10 + Math.sin(time * 2) * 3;
-    player.joints.leftFoot.y = y + 18;
-    player.joints.rightFoot.x = x + 8 - Math.sin(time * 2) * 3;
-    player.joints.rightFoot.y = y + 24;
+    // JUMPING / RISING IN AIR:
+    // Knees tuck up towards body; feet angle backwards dynamically with upward speed
+    const tuckAmount = Math.min(12, Math.abs(vy) * 0.8);
+    const airInertiaX = -(vx * 2.2);
+
+    player.joints.leftFoot.x = x - facing * 8 + airInertiaX + Math.sin(time * 2.5) * 2;
+    player.joints.leftFoot.y = y + 20 - tuckAmount;
+
+    player.joints.rightFoot.x = x + facing * 6 + airInertiaX - Math.sin(time * 2.5) * 2;
+    player.joints.rightFoot.y = y + 24 - tuckAmount * 0.7;
   } else if (isFalling) {
-    // Fall / Flight / Float: Legs extend down and flutter in wind
-    const flutter = Math.sin(time * 2.5) * 5;
-    player.joints.leftFoot.x = x - 12 + flutter;
-    player.joints.leftFoot.y = y + 32 + Math.cos(time * 2) * 3;
-    player.joints.rightFoot.x = x + 10 - flutter;
-    player.joints.rightFoot.y = y + 32 - Math.cos(time * 2) * 3;
+    // FALLING / FLIGHT:
+    // Legs trail dynamically into the wind stream based on horizontal velocity vx and fall velocity vy
+    const aeroDragX = -(vx * 3.4);
+    const fallStream = Math.min(8, vy * 0.5);
+    const flutter = Math.sin(time * 3.0) * (3.5 + Math.min(6, vy * 0.4));
+
+    player.joints.leftFoot.x = x - facing * 10 + aeroDragX + flutter;
+    player.joints.leftFoot.y = y + 32 - fallStream + Math.cos(time * 3.0) * 2.5;
+
+    player.joints.rightFoot.x = x + facing * 8 + aeroDragX - flutter;
+    player.joints.rightFoot.y = y + 32 - fallStream - Math.cos(time * 3.0) * 2.5;
   } else if (isMoving) {
-    // Ground Walk / Run
-    player.joints.leftFoot.x = x - legSwing;
-    player.joints.leftFoot.y = y + 30 - legLift;
-    player.joints.rightFoot.x = x + legSwing;
-    player.joints.rightFoot.y = y + 30 - (6 - legLift);
+    // GROUND RUNNING / WALKING:
+    // Procedural cycloid foot stride curves with dynamic step length and foot lift
+    const strideLength = 16 * Math.max(0.6, speedRatio);
+    const strideHeight = 10 * Math.max(0.4, speedRatio);
+
+    const leg1Cycle = player.runCycle;
+    const leg2Cycle = player.runCycle + Math.PI;
+
+    // Foot 1 (Left)
+    player.joints.leftFoot.x = x - Math.sin(leg1Cycle) * strideLength * facing;
+    player.joints.leftFoot.y = y + 29 - Math.max(0, Math.cos(leg1Cycle)) * strideHeight;
+
+    // Foot 2 (Right)
+    player.joints.rightFoot.x = x - Math.sin(leg2Cycle) * strideLength * facing;
+    player.joints.rightFoot.y = y + 29 - Math.max(0, Math.cos(leg2Cycle)) * strideHeight;
   } else {
-    // Ground Idle / Standing
-    player.joints.leftFoot.x = x - 10;
+    // GROUND IDLE / STANDING:
+    // Subtle breathing posture with stable planted boots
+    const breath = Math.sin(time) * 1.0;
+    player.joints.leftFoot.x = x - 8;
     player.joints.leftFoot.y = y + 30;
-    player.joints.rightFoot.x = x + 10;
+    player.joints.rightFoot.x = x + 8;
     player.joints.rightFoot.y = y + 30;
   }
 
-  // Dynamic Arm & Hand Animations
-  const armSwing = Math.cos(player.runCycle) * 14;
-
+  // 3. Procedural Arm & Hand Kinematics
   if (isJumping) {
-    // Jump: Hands raise up or balance
-    player.joints.leftHand.x = x - player.facing * 18;
-    player.joints.leftHand.y = y - 16 + Math.sin(time * 2) * 3;
-    player.joints.rightHand.x = x + player.facing * 20;
-    player.joints.rightHand.y = y - 10;
+    // Jump: Back arm reaches high for momentum, front arm balances
+    player.joints.leftHand.x = x - facing * (16 + Math.abs(vx) * 1.5);
+    player.joints.leftHand.y = y - 18 - Math.min(6, Math.abs(vy) * 0.5);
+
+    player.joints.rightHand.x = x + facing * 20;
+    player.joints.rightHand.y = y - 10 + (player.aimAngle || 0) * 10;
   } else if (isFalling) {
-    // Fall / Flight: Hands flare out for aerodynamic stability
-    player.joints.leftHand.x = x - player.facing * 22;
-    player.joints.leftHand.y = y - 6 + Math.sin(time * 2) * 4;
-    player.joints.rightHand.x = x + player.facing * 22;
-    player.joints.rightHand.y = y - 6 - Math.sin(time * 2) * 4;
+    // Flight / Falling: Arms flare outward as aerodynamic stabilizers
+    const aeroWingX = -(vx * 2.5);
+    const wingFlap = Math.sin(time * 3.0) * 3;
+
+    player.joints.leftHand.x = x - facing * 22 + aeroWingX;
+    player.joints.leftHand.y = y - 6 + wingFlap;
+
+    player.joints.rightHand.x = x + facing * 22;
+    player.joints.rightHand.y = y - 6 - wingFlap + (player.aimAngle || 0) * 12;
   } else if (isMoving) {
-    // Walk / Run: Hands swing rhythmically
-    player.joints.leftHand.x = x - player.facing * (12 + armSwing);
-    player.joints.leftHand.y = y - 6 + Math.sin(time * 2) * 3;
-    player.joints.rightHand.x = x + player.facing * (18 - armSwing);
-    player.joints.rightHand.y = y - 6 - Math.sin(time * 2) * 3;
+    // Running: Back arm swings in natural opposition to front foot
+    const armSwing = Math.cos(player.runCycle) * 15 * speedRatio;
+
+    player.joints.leftHand.x = x - facing * (12 + armSwing) - (vx * 0.6);
+    player.joints.leftHand.y = y - 6 + Math.abs(Math.sin(player.runCycle)) * 4;
+
+    player.joints.rightHand.x = x + facing * (18 - armSwing * 0.6);
+    player.joints.rightHand.y = y - 6 + (player.aimAngle || 0) * 12;
   } else {
-    // Idle: Gentle breathing hand motion
-    player.joints.leftHand.x = x - player.facing * 12;
-    player.joints.leftHand.y = y - 6 + Math.sin(time) * 2;
-    player.joints.rightHand.x = x + player.facing * 16;
-    player.joints.rightHand.y = y - 6 - Math.sin(time) * 2;
+    // Idle: Gentle resting pose with natural breathing sway
+    const breathHand = Math.sin(time) * 1.5;
+    player.joints.leftHand.x = x - facing * 12;
+    player.joints.leftHand.y = y - 6 + breathHand;
+
+    player.joints.rightHand.x = x + facing * 16;
+    player.joints.rightHand.y = y - 6 - breathHand + (player.aimAngle || 0) * 12;
   }
 }
 

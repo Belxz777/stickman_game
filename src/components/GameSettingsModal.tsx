@@ -463,6 +463,39 @@ export const GameSettingsModal: React.FC<GameSettingsModalProps> = ({
                 </div>
               </div>
 
+              {/* Auto-fire Speed / Delay when holding movement keys (e.g. A / D) */}
+              <div className="bg-slate-950/80 border border-slate-800 p-4 rounded-2xl space-y-2">
+                <div className="flex justify-between items-center text-xs font-bold text-slate-200">
+                  <span className="flex items-center gap-1.5 text-amber-400">
+                    <Zap className="w-4 h-4" /> Задержка авто-выстрелов при зажатии клавиш (A / D):
+                  </span>
+                  <span className="font-mono text-amber-400 font-black">
+                    {settings.autoFireCooldownMultiplier <= 0.8
+                      ? '⚡ Быстрая'
+                      : settings.autoFireCooldownMultiplier <= 1.4
+                      ? '🎯 Умеренная'
+                      : '⏳ Замедленная'}{' '}
+                    ({settings.autoFireCooldownMultiplier.toFixed(1)}x пауза)
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="0.6"
+                  max="3.0"
+                  step="0.1"
+                  value={settings.autoFireCooldownMultiplier}
+                  onChange={(e) =>
+                    handleChange('autoFireCooldownMultiplier', parseFloat(e.target.value))
+                  }
+                  className="w-full accent-amber-500 cursor-pointer"
+                />
+                <div className="flex justify-between text-[10px] text-slate-500">
+                  <span>0.6x (Быстрая очередь)</span>
+                  <span>1.3x (Стандартная с паузой)</span>
+                  <span>3.0x (Редкие выстрелы)</span>
+                </div>
+              </div>
+
               {/* Rounds to Win Match */}
               <div className="bg-slate-950/80 border border-slate-800 p-4 rounded-2xl space-y-2">
                 <div className="flex justify-between items-center text-xs font-bold text-slate-200">
