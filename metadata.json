@@ -1,0 +1,6 @@
+{
+  "name": "Битва Красно-Синих Агентов",
+  "description": "Физический файтинг для двоих на одной клавиатуре: случайное оружие каждый раунд, арены с препятствиями и динамичные дуэли.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

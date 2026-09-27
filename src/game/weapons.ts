@@ -1,0 +1,286 @@
+import { Weapon, WeaponId } from '../types/game';
+
+export const WEAPONS: Record<WeaponId, Weapon> = {
+  laser_katana: {
+    id: 'laser_katana',
+    nameRu: 'Лазерная катана',
+    nameEn: 'Laser Katana',
+    type: 'melee',
+    damage: 48,
+    cooldown: 280,
+    knockback: 10,
+    range: 78,
+    description: 'Быстрый рывок и смертоносный рассекающий удар энергией.',
+    color: '#06B6D4', // Cyan
+    glowColor: '#22D3EE',
+    speedMultiplier: 1.15,
+    iconName: 'Zap',
+  },
+  sledgehammer: {
+    id: 'sledgehammer',
+    nameRu: 'Золотая кувалда',
+    nameEn: 'Golden Sledgehammer',
+    type: 'melee',
+    damage: 65,
+    cooldown: 580,
+    knockback: 18,
+    range: 85,
+    description: 'Тяжелый сокрушительный удар, отбрасывающий врага через всю арену.',
+    color: '#FACC15', // Gold / Yellow like the screenshot
+    glowColor: '#FEF08A',
+    speedMultiplier: 1.05,
+    iconName: 'Hammer',
+  },
+  battle_axe: {
+    id: 'battle_axe',
+    nameRu: 'Боевой топор',
+    nameEn: 'Battle Axe',
+    type: 'melee',
+    damage: 55,
+    cooldown: 420,
+    knockback: 14,
+    range: 82,
+    description: 'Широкий рубящий взмах с вращением лезвия.',
+    color: '#E11D48', // Crimson
+    glowColor: '#FB7185',
+    speedMultiplier: 1.1,
+    iconName: 'Axe',
+  },
+  shotgun: {
+    id: 'shotgun',
+    nameRu: 'Обрез-дробовик',
+    nameEn: 'Sawed-off Shotgun',
+    type: 'ranged',
+    damage: 6, // 4 pellets = up to 24 dmg at point-blank
+    cooldown: 620,
+    knockback: 9,
+    range: 240,
+    description: 'Веер из 4 картечин с отдачей. Ствол плавно ходит вверх-вниз при прицеливании.',
+    color: '#F97316', // Orange
+    glowColor: '#FDBA74',
+    recoil: 5,
+    iconName: 'Crosshair',
+  },
+  rocket_launcher: {
+    id: 'rocket_launcher',
+    nameRu: 'Ракетница РПГ',
+    nameEn: 'Rocket Launcher',
+    type: 'ranged',
+    damage: 28,
+    cooldown: 800,
+    knockback: 15,
+    range: 600,
+    description: 'Запускает реактивную ракету со взрывной волной. Долгая перезарядка.',
+    color: '#EF4444', // Red
+    glowColor: '#F87171',
+    recoil: 4,
+    iconName: 'Flame',
+  },
+  railgun: {
+    id: 'railgun',
+    nameRu: 'Плазменный рельсотрон',
+    nameEn: 'Plasma Railgun',
+    type: 'ranged',
+    damage: 26,
+    cooldown: 720,
+    knockback: 12,
+    range: 750,
+    description: 'Сверхточный мгновенный луч плазмы. Траектория зависит от угла качания ствола.',
+    color: '#A855F7', // Purple
+    glowColor: '#C084FC',
+    iconName: 'Radio',
+  },
+  dual_sai: {
+    id: 'dual_sai',
+    nameRu: 'Парные клинки ниндзя',
+    nameEn: 'Dual Ninja Sai',
+    type: 'melee',
+    damage: 32,
+    cooldown: 190,
+    knockback: 7,
+    range: 65,
+    description: 'Молниеносный шквал быстрых колющих ударов и повышенная скорость бега.',
+    color: '#10B981', // Emerald
+    glowColor: '#34D399',
+    speedMultiplier: 1.25,
+    iconName: 'Swords',
+  },
+  fire_wand: {
+    id: 'fire_wand',
+    nameRu: 'Огненный жезл',
+    nameEn: 'Fire Wand',
+    type: 'ranged',
+    damage: 22,
+    cooldown: 520,
+    knockback: 8,
+    range: 480,
+    description: 'Выпускает прыгучий огненный шар по дуге прицеливания.',
+    color: '#FB923C', // Amber
+    glowColor: '#FED7AA',
+    iconName: 'Sparkles',
+  },
+  power_fists: {
+    id: 'power_fists',
+    nameRu: 'Силовые кулаки',
+    nameEn: 'Power Fists',
+    type: 'fists',
+    damage: 45,
+    cooldown: 260,
+    knockback: 15,
+    range: 68,
+    description: 'Серия сокрушительных боксерских ударов и подбрасывающий апперкот.',
+    color: '#EC4899', // Pink
+    glowColor: '#F472B6',
+    speedMultiplier: 1.15,
+    iconName: 'Shield',
+  },
+  flail: {
+    id: 'flail',
+    nameRu: 'Шипастый кистень',
+    nameEn: 'Spiked Flail',
+    type: 'flail',
+    damage: 54,
+    cooldown: 320,
+    knockback: 16,
+    range: 82,
+    description: 'Тяжелый шипованный шар на цепи, раскручиваемый вокруг агента физикой.',
+    color: '#EAB308', // Yellow/Gold
+    glowColor: '#FEF08A',
+    speedMultiplier: 1.05,
+    iconName: 'Disc',
+  },
+  energy_spear: {
+    id: 'energy_spear',
+    nameRu: 'Энергетическое копьё',
+    nameEn: 'Energy Spear',
+    type: 'melee',
+    damage: 52,
+    cooldown: 360,
+    knockback: 15,
+    range: 96,
+    description: 'Сверхдальний колющий выпад с пронзанием и вращением наконечника.',
+    color: '#065F46', // Deep emerald
+    glowColor: '#10B981',
+    speedMultiplier: 1.1,
+    iconName: 'Zap',
+  },
+  plasma_scythe: {
+    id: 'plasma_scythe',
+    nameRu: 'Плазменная коса Жнеца',
+    nameEn: 'Plasma Reaper Scythe',
+    type: 'melee',
+    damage: 60,
+    cooldown: 480,
+    knockback: 17,
+    range: 90,
+    description: 'Огромный дуговой рассекающий взмах, затягивающий врага в лезвие.',
+    color: '#7C3AED', // Violet
+    glowColor: '#A78BFA',
+    speedMultiplier: 1.05,
+    iconName: 'Sparkles',
+  },
+  boomerang_blade: {
+    id: 'boomerang_blade',
+    nameRu: 'Бумеранг-сюрикен',
+    nameEn: 'Boomerang Blade',
+    type: 'ranged',
+    damage: 26,
+    cooldown: 560,
+    knockback: 10,
+    range: 520,
+    description: 'Летающий вращающийся клинок, прорезающий цель и возвращающийся назад.',
+    color: '#38BDF8', // Sky blue
+    glowColor: '#7DD3FC',
+    iconName: 'Disc',
+  },
+  chainsaw: {
+    id: 'chainsaw',
+    nameRu: 'Моторная бензопила',
+    nameEn: 'Motorized Chainsaw',
+    type: 'melee',
+    damage: 58,
+    cooldown: 220,
+    knockback: 11,
+    range: 76,
+    description: 'Рычащая вибрирующая пила с искрами и брызгами. Угол атаки ходит вверх-вниз!',
+    color: '#EA580C', // Deep Orange
+    glowColor: '#FB923C',
+    speedMultiplier: 1.12,
+    iconName: 'Zap',
+  },
+  grenade_launcher: {
+    id: 'grenade_launcher',
+    nameRu: 'Гранатомёт MGL',
+    nameEn: 'MGL Grenade Launcher',
+    type: 'ranged',
+    damage: 34,
+    cooldown: 780,
+    knockback: 15,
+    range: 580,
+    description: 'Выстреливает прыгучую гранату по дуге с взрывным радиусом при детонации.',
+    color: '#84CC16', // Lime
+    glowColor: '#A3E635',
+    recoil: 4,
+    iconName: 'Flame',
+  },
+  heavy_crossbow: {
+    id: 'heavy_crossbow',
+    nameRu: 'Бронебойный арбалет',
+    nameEn: 'Heavy Armor Crossbow',
+    type: 'ranged',
+    damage: 38,
+    cooldown: 680,
+    knockback: 13,
+    range: 720,
+    description: 'Стреляет скоростным бронебойным стальным болтом по плавающему прицелу.',
+    color: '#D97706', // Amber
+    glowColor: '#FBBF24',
+    recoil: 3,
+    iconName: 'Crosshair',
+  },
+  thunder_hammer: {
+    id: 'thunder_hammer',
+    nameRu: 'Громовой молот Тесла',
+    nameEn: 'Tesla Thunder Hammer',
+    type: 'melee',
+    damage: 68,
+    cooldown: 540,
+    knockback: 17,
+    range: 86,
+    description: 'Сокрушительный удар молнии с электрическим разрядом и звуковым ударом.',
+    color: '#3B82F6', // Lightning Blue
+    glowColor: '#60A5FA',
+    speedMultiplier: 1.04,
+    iconName: 'Hammer',
+  },
+  kunai_burst: {
+    id: 'kunai_burst',
+    nameRu: 'Веер кунаев шиноби',
+    nameEn: 'Shinobi Kunai Fan',
+    type: 'ranged',
+    damage: 12,
+    cooldown: 460,
+    knockback: 8,
+    range: 480,
+    description: 'Веер из 3 скоростных бросковых кинжалов с изменяемым углом разброса.',
+    color: '#14B8A6', // Teal
+    glowColor: '#2DD4BF',
+    speedMultiplier: 1.15,
+    iconName: 'Swords',
+  },
+};
+
+export const WEAPON_LIST = Object.values(WEAPONS);
+
+export function getRandomWeapon(excludeId?: WeaponId): Weapon {
+  const available = excludeId ? WEAPON_LIST.filter((w) => w.id !== excludeId) : WEAPON_LIST;
+  const randomIndex = Math.floor(Math.random() * available.length);
+  return available[randomIndex];
+}
+
+// Generate two different random weapons for each round
+export function getRoundWeapons(): [Weapon, Weapon] {
+  const w1 = getRandomWeapon();
+  const w2 = getRandomWeapon(w1.id);
+  return [w1, w2];
+}
