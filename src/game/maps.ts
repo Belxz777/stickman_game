@@ -550,13 +550,43 @@ export const MAPS: Record<MapId, GameMap> = {
 
 export const MAP_LIST = Object.values(MAPS);
 
+export function getSavedCustomMaps(): GameMap[] {
+  try {
+    const raw = localStorage.getItem('agent_battle_custom_maps');
+    if (!raw) return [];
+    return JSON.parse(raw);
+  } catch {
+    return [];
+  }
+}
+
+export function saveCustomMap(map: GameMap): void {
+  try {
+    const existing = getSavedCustomMaps();
+    const idx = existing.findIndex((m) => m.id === map.id);
+    if (idx >= 0) {
+      existing[idx] = map;
+    } else {
+      existing.push(map);
+    }
+    localStorage.setItem('agent_battle_custom_maps', JSON.stringify(existing));
+  } catch {}
+}
+
+export function getAllMaps(): GameMap[] {
+  const custom = getSavedCustomMaps();
+  return [...MAP_LIST, ...custom];
+}
+
 export function getNextMap(currentMapId: MapId): GameMap {
-  const currentIndex = MAP_LIST.findIndex((m) => m.id === currentMapId);
-  const nextIndex = (currentIndex + 1) % MAP_LIST.length;
-  return MAP_LIST[nextIndex];
+  const all = getAllMaps();
+  const currentIndex = all.findIndex((m) => m.id === currentMapId);
+  const nextIndex = (currentIndex + 1) % all.length;
+  return all[nextIndex];
 }
 
 export function getRandomMap(excludeId?: MapId): GameMap {
-  const available = excludeId ? MAP_LIST.filter((m) => m.id !== excludeId) : MAP_LIST;
+  const all = getAllMaps();
+  const available = excludeId ? all.filter((m) => m.id !== excludeId) : all;
   return available[Math.floor(Math.random() * available.length)];
 }

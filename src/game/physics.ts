@@ -6,6 +6,7 @@ import {
   Particle,
   BombEntity,
   BarrelEntity,
+  MeteoriteEntity,
   Weapon,
 } from '../types/game';
 import {
@@ -26,7 +27,10 @@ import {
   playCrossbowSound,
 } from '../audio/soundEngine';
 
-export const GRAVITY = 0.55;
+export let GRAVITY = 0.55;
+export function setGravity(value: number) {
+  GRAVITY = value;
+}
 export const MAX_FALL_SPEED = 14;
 export const MOVE_SPEED = 5.2;
 export const JUMP_FORCE = -12.5;
@@ -50,7 +54,8 @@ export function getPlatformTopY(platform: Platform, x: number): number {
 export function createDefaultPlayer(
   id: 'p1' | 'p2',
   weapon: Weapon,
-  spawn: [number, number]
+  spawn: [number, number],
+  maxHp: number = 100
 ): Player {
   const isP1 = id === 'p1';
   const color = isP1 ? '#2563EB' : '#DC2626'; // Vibrant Blue vs Crimson Red
@@ -70,8 +75,8 @@ export function createDefaultPlayer(
     width: 32,
     height: 64,
     facing: isP1 ? 1 : -1,
-    hp: 100,
-    maxHp: 100,
+    hp: maxHp,
+    maxHp,
     weapon,
     attackCooldown: 0,
     attacking: false,
@@ -104,13 +109,19 @@ export function createDefaultPlayer(
   };
 }
 
-export function resetPlayerForRound(player: Player, weapon: Weapon, spawn: [number, number]): void {
+export function resetPlayerForRound(
+  player: Player,
+  weapon: Weapon,
+  spawn: [number, number],
+  maxHp: number = 100
+): void {
   const isP1 = player.id === 'p1';
   player.x = spawn[0];
   player.y = spawn[1];
   player.vx = 0;
   player.vy = 0;
-  player.hp = 100;
+  player.hp = maxHp;
+  player.maxHp = maxHp;
   player.weapon = weapon;
   player.attackCooldown = 0;
   player.attacking = false;
@@ -166,7 +177,10 @@ export function updatePlayer(
   particles: Particle[],
   shakeRef: { value: number },
   dt: number,
-  forceZeroG?: boolean
+  moveSpeedMult: number = 1.0,
+  jumpForceMult: number = 1.0,
+  damageMult: number = 1.0,
+  cooldownMult: number = 1.0
 ): void {
   if (player.isDead) {
     updateRagdoll(player, map, dt);
@@ -177,8 +191,8 @@ export function updatePlayer(
     player.hitFlashTimer = Math.max(0, player.hitFlashTimer - dt * 1000);
   }
 
-  // 1. Movement Inputs
-  const speed = MOVE_SPEED * (player.weapon.speedMultiplier || 1);
+  // 1. Movement Inputs with configurable move speed multiplier
+  const speed = MOVE_SPEED * (player.weapon.speedMultiplier || 1) * moveSpeedMult;
   if (input.left) {
     player.vx -= speed * 0.45;
     player.facing = -1;
@@ -195,75 +209,9 @@ export function updatePlayer(
     player.vx = Math.sign(player.vx) * speed;
   }
 
-  // Check Zero Gravity mode from map or global setting
-  const isZeroG = forceZeroG || !!map.isZeroGravity;
-
-  // Jump Hold Charge (In Zero Gravity mode: holding jump for 2 seconds launches you soaring up!)
-  if (isZeroG) {
-    if (input.up) {
-      player.jumpHoldTimer += dt;
-      // Charging thruster spark particles
-      if (Math.random() < 0.5) {
-        particles.push({
-          id: getUniqueId(),
-          x: player.x + (Math.random() - 0.5) * 16,
-          y: player.y + player.height / 2,
-          vx: (Math.random() - 0.5) * 4,
-          vy: 3 + Math.random() * 5,
-          radius: 3 + Math.random() * 3,
-          color: player.jumpHoldTimer >= 2.0 ? '#38BDF8' : '#F59E0B',
-          alpha: 0.95,
-          decay: 0.08,
-          type: 'fire',
-        });
-      }
-
-      if (player.jumpHoldTimer >= 2.0 && !player.jumpSuperCharged) {
-        // SUPER ROCKET LAUNCH!
-        player.jumpSuperCharged = true;
-        player.vy = -30; // Rocket launch straight upwards!
-        shakeRef.value = Math.max(shakeRef.value, 15);
-        playBouncerSound();
-
-        // Massive thruster shockwave ring
-        particles.push({
-          id: getUniqueId(),
-          x: player.x,
-          y: player.y + player.height / 2,
-          vx: 0,
-          vy: 0,
-          radius: 36,
-          color: '#38BDF8',
-          alpha: 1,
-          decay: 0.05,
-          type: 'shockwave',
-        });
-
-        // Floating launch text
-        particles.push({
-          id: getUniqueId(),
-          x: player.x,
-          y: player.y - 45,
-          vx: 0,
-          vy: -3,
-          radius: 0,
-          color: '#38BDF8',
-          alpha: 1,
-          decay: 0.02,
-          type: 'text',
-          text: 'СУПЕР ВЗЛЕТ!',
-          fontSize: 24,
-        });
-      }
-    } else {
-      player.jumpHoldTimer = 0;
-      player.jumpSuperCharged = false;
-    }
-  }
-
   // Jump
-  if (input.up && player.jumpsLeft > 0 && (!isZeroG || player.jumpHoldTimer < 0.2)) {
-    player.vy = isZeroG ? -8 : JUMP_FORCE;
+  if (input.up && player.jumpsLeft > 0) {
+    player.vy = JUMP_FORCE * jumpForceMult;
     player.jumpsLeft--;
     player.isGrounded = false;
     playJumpSound();
@@ -284,23 +232,15 @@ export function updatePlayer(
     }
   }
 
-  // Gravity & Friction
-  if (isZeroG) {
-    // In zero-g: very gentle floating drift, floaty flight
-    player.vy *= 0.985;
-    if (input.down) {
-      player.vy += 0.4;
-    }
-  } else {
-    player.vy += GRAVITY;
-    if (player.vy > MAX_FALL_SPEED) player.vy = MAX_FALL_SPEED;
-  }
+  // Gravity & Friction (Adjustable non-zero gravity)
+  player.vy += GRAVITY;
+  if (player.vy > MAX_FALL_SPEED) player.vy = MAX_FALL_SPEED;
 
   if (player.isGrounded) {
     player.vx *= FRICTION;
     if (Math.abs(player.vx) < 0.1) player.vx = 0;
   } else {
-    player.vx *= isZeroG ? 0.98 : AIR_DRAG;
+    player.vx *= AIR_DRAG;
   }
 
   // Move
@@ -329,6 +269,28 @@ export function updatePlayer(
       // Dropping through oneway platform
       if (plat.type === 'oneway' && input.down && input.up) {
         continue;
+      }
+
+      // Spikes platform hazard! (Requirement: Spikes that quickly damage/kill)
+      if (plat.type === 'spikes') {
+        if (player.vy >= 0 && prevFeetY <= topY + 12 && feetY >= topY - 8) {
+          player.y = topY - player.height / 2;
+          player.vy = -6; // Bounce off spikes
+          applyDamage(player, 40, 0, -8, opponent, shakeRef, particles, 'ШИПЫ!');
+          playHeavySmashSound();
+          shakeRef.value = Math.max(shakeRef.value, 10);
+          continue;
+        }
+      }
+
+      // Hazard block (damages and bounces player)
+      if (plat.type === 'hazard_block') {
+        if (feetY >= plat.y && player.y - player.height / 2 <= plat.y + plat.height) {
+          applyDamage(player, 25, -player.facing * 8, -6, opponent, shakeRef, particles, 'ОПАСНОСТЬ!');
+          player.vy = -8;
+          player.vx = -player.facing * 6;
+          continue;
+        }
       }
 
       // Landing from above
@@ -458,9 +420,23 @@ export function updatePlayer(
     }
   }
 
-  // 5. Trigger Attack
-  if (input.attack && player.attackCooldown <= 0 && !player.attacking) {
-    executeAttack(player, opponent, projectiles, particles, shakeRef);
+  // 5. Automatic Attack System (Requirement: Melee on contact, Ranged auto-fire on move)
+  if (player.attackCooldown <= 0 && !player.attacking) {
+    if (player.weapon.type === 'melee' || player.weapon.type === 'fists') {
+      // Melee: auto-trigger on contact
+      const dx = opponent.x - player.x;
+      const dy = opponent.y - player.y;
+      const dist = Math.hypot(dx, dy);
+      if (Math.sign(dx) === player.facing && dist <= player.weapon.range + 18) {
+         executeAttack(player, opponent, projectiles, particles, shakeRef, damageMult, cooldownMult);
+      }
+    } else if (player.weapon.type === 'ranged') {
+      // Ranged: auto-fire with delay when moving
+      if (input.left || input.right || input.up) {
+        // Simple delay based on weapon cooldown
+        executeAttack(player, opponent, projectiles, particles, shakeRef, damageMult, cooldownMult);
+      }
+    }
   }
 
   // Update animated joints to follow stickman body
@@ -470,27 +446,81 @@ export function updatePlayer(
 function updateJointsFromPlayer(player: Player): void {
   const x = player.x;
   const y = player.y;
-  player.joints.head.x = x;
-  player.joints.head.y = y - 24;
+  const time = Date.now() / 120;
+  const isMoving = Math.abs(player.vx) > 0.4;
+  const isJumping = !player.isGrounded && player.vy < 0;
+  const isFalling = !player.isGrounded && player.vy >= 0;
 
-  player.joints.chest.x = x;
-  player.joints.chest.y = y - 8;
+  // Head, Chest, Pelvis movement
+  const leanForward = isMoving ? player.facing * 4 : 0;
+  player.joints.head.x = x + leanForward * 0.8;
+  player.joints.head.y = y - 26 + (isMoving ? Math.sin(time * 2) * 2 : Math.sin(time) * 1.5);
+
+  player.joints.chest.x = x + leanForward * 0.5;
+  player.joints.chest.y = y - 10 + (isMoving ? Math.cos(time * 2) * 1.5 : 0);
 
   player.joints.pelvis.x = x;
-  player.joints.pelvis.y = y + 8;
+  player.joints.pelvis.y = y + 6;
 
-  const legSwing = Math.sin(player.runCycle) * 12;
-  player.joints.leftFoot.x = x - (player.isGrounded ? legSwing : -6);
-  player.joints.leftFoot.y = y + 30;
+  // Dynamic Leg Animations
+  const legSwing = Math.sin(player.runCycle) * 18;
+  const legLift = Math.abs(Math.cos(player.runCycle)) * 6;
 
-  player.joints.rightFoot.x = x + (player.isGrounded ? legSwing : 6);
-  player.joints.rightFoot.y = y + 30;
+  if (isJumping) {
+    // Jump Up / Launch: Knees tuck up towards body
+    player.joints.leftFoot.x = x - 10 + Math.sin(time * 2) * 3;
+    player.joints.leftFoot.y = y + 18;
+    player.joints.rightFoot.x = x + 8 - Math.sin(time * 2) * 3;
+    player.joints.rightFoot.y = y + 24;
+  } else if (isFalling) {
+    // Fall / Flight / Float: Legs extend down and flutter in wind
+    const flutter = Math.sin(time * 2.5) * 5;
+    player.joints.leftFoot.x = x - 12 + flutter;
+    player.joints.leftFoot.y = y + 32 + Math.cos(time * 2) * 3;
+    player.joints.rightFoot.x = x + 10 - flutter;
+    player.joints.rightFoot.y = y + 32 - Math.cos(time * 2) * 3;
+  } else if (isMoving) {
+    // Ground Walk / Run
+    player.joints.leftFoot.x = x - legSwing;
+    player.joints.leftFoot.y = y + 30 - legLift;
+    player.joints.rightFoot.x = x + legSwing;
+    player.joints.rightFoot.y = y + 30 - (6 - legLift);
+  } else {
+    // Ground Idle / Standing
+    player.joints.leftFoot.x = x - 10;
+    player.joints.leftFoot.y = y + 30;
+    player.joints.rightFoot.x = x + 10;
+    player.joints.rightFoot.y = y + 30;
+  }
 
-  player.joints.leftHand.x = x - player.facing * 10;
-  player.joints.leftHand.y = y - 6;
+  // Dynamic Arm & Hand Animations
+  const armSwing = Math.cos(player.runCycle) * 14;
 
-  player.joints.rightHand.x = x + player.facing * 16;
-  player.joints.rightHand.y = y - 6;
+  if (isJumping) {
+    // Jump: Hands raise up or balance
+    player.joints.leftHand.x = x - player.facing * 18;
+    player.joints.leftHand.y = y - 16 + Math.sin(time * 2) * 3;
+    player.joints.rightHand.x = x + player.facing * 20;
+    player.joints.rightHand.y = y - 10;
+  } else if (isFalling) {
+    // Fall / Flight: Hands flare out for aerodynamic stability
+    player.joints.leftHand.x = x - player.facing * 22;
+    player.joints.leftHand.y = y - 6 + Math.sin(time * 2) * 4;
+    player.joints.rightHand.x = x + player.facing * 22;
+    player.joints.rightHand.y = y - 6 - Math.sin(time * 2) * 4;
+  } else if (isMoving) {
+    // Walk / Run: Hands swing rhythmically
+    player.joints.leftHand.x = x - player.facing * (12 + armSwing);
+    player.joints.leftHand.y = y - 6 + Math.sin(time * 2) * 3;
+    player.joints.rightHand.x = x + player.facing * (18 - armSwing);
+    player.joints.rightHand.y = y - 6 - Math.sin(time * 2) * 3;
+  } else {
+    // Idle: Gentle breathing hand motion
+    player.joints.leftHand.x = x - player.facing * 12;
+    player.joints.leftHand.y = y - 6 + Math.sin(time) * 2;
+    player.joints.rightHand.x = x + player.facing * 16;
+    player.joints.rightHand.y = y - 6 - Math.sin(time) * 2;
+  }
 }
 
 export function executeAttack(
@@ -498,10 +528,12 @@ export function executeAttack(
   opponent: Player,
   projectiles: Projectile[],
   particles: Particle[],
-  shakeRef: { value: number }
+  shakeRef: { value: number },
+  damageMult: number = 1.0,
+  cooldownMult: number = 1.0
 ): void {
   const w = player.weapon;
-  player.attackCooldown = w.cooldown;
+  player.attackCooldown = Math.max(80, Math.floor(w.cooldown * cooldownMult));
   player.attacking = true;
   player.attackTimer = 180; // visual duration
 
@@ -1291,6 +1323,114 @@ export function updateParticles(particles: Particle[], dt: number): void {
       pt.radius += 0.2;
     } else if (pt.type === 'shockwave' || pt.type === 'ring') {
       pt.radius += 4.5;
+    }
+  }
+}
+
+// Update Dynamic Meteorites
+export function updateMeteorites(
+  meteorites: MeteoriteEntity[],
+  players: Player[],
+  map: GameMap,
+  particles: Particle[],
+  shakeRef: { value: number },
+  dt: number,
+  frequencyMultiplier: number = 1.0
+): void {
+  // Spawn new meteorites periodically if enabled globally or by map
+  if (frequencyMultiplier > 0 && (map.meteoritesEnabled || frequencyMultiplier > 1.0)) {
+    if (Math.random() < dt * 0.45 * frequencyMultiplier) {
+      const mapWidth = map.customWidth || 1000;
+      meteorites.push({
+        id: getUniqueId(),
+        x: Math.random() * (mapWidth - 100) + 50,
+        y: -40,
+        vx: (Math.random() - 0.5) * 3,
+        vy: 4 + Math.random() * 5,
+        radius: 18 + Math.random() * 12,
+        rotation: 0,
+        rotationSpeed: (Math.random() - 0.5) * 0.1,
+        damage: 45,
+        active: true,
+      });
+    }
+  }
+
+  for (let i = meteorites.length - 1; i >= 0; i--) {
+    const met = meteorites[i];
+    if (!met.active) {
+      meteorites.splice(i, 1);
+      continue;
+    }
+
+    met.x += met.vx;
+    met.y += met.vy;
+    met.rotation += met.rotationSpeed;
+
+    // Fiery tail particles
+    if (Math.random() < 0.6) {
+      particles.push({
+        id: getUniqueId(),
+        x: met.x + (Math.random() - 0.5) * met.radius,
+        y: met.y - met.radius * 0.5,
+        vx: (Math.random() - 0.5) * 2,
+        vy: -met.vy * 0.3,
+        radius: 3 + Math.random() * 4,
+        color: '#F97316',
+        alpha: 0.9,
+        decay: 0.08,
+        type: 'fire',
+      });
+    }
+
+    // Check hit players
+    for (const player of players) {
+      if (player.isDead) continue;
+      const dist = Math.hypot(met.x - player.x, met.y - player.y);
+      if (dist < met.radius + 18) {
+        met.active = false;
+        applyDamage(player, met.damage, Math.sign(player.x - met.x) * 10, -8, player, shakeRef, particles, 'МЕТЕОРИТ!');
+        playExplosionSound();
+        shakeRef.value = Math.max(shakeRef.value, 12);
+        break;
+      }
+    }
+
+    // Check hit platforms or out of bounds
+    if (met.active) {
+      for (const plat of map.platforms) {
+        if (
+          met.x + met.radius > plat.x &&
+          met.x - met.radius < plat.x + plat.width &&
+          met.y + met.radius > plat.y &&
+          met.y - met.radius < plat.y + plat.height
+        ) {
+          met.active = false;
+          playExplosionSound();
+          shakeRef.value = Math.max(shakeRef.value, 8);
+
+          // Impact debris particles
+          for (let k = 0; k < 8; k++) {
+            particles.push({
+              id: getUniqueId(),
+              x: met.x,
+              y: met.y,
+              vx: (Math.random() - 0.5) * 8,
+              vy: (Math.random() - 0.5) * 8,
+              radius: 4 + Math.random() * 4,
+              color: '#EA580C',
+              alpha: 1,
+              decay: 0.07,
+              type: 'debris',
+            });
+          }
+          break;
+        }
+      }
+    }
+
+    if (met.y > (map.customHeight || 600) + 50) {
+      met.active = false;
     }
   }
 }

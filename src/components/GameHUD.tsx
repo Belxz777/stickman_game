@@ -1,6 +1,6 @@
 import React from 'react';
-import { Player, GameMap, GameMode } from '../types/game';
-import { Volume2, VolumeX, Pause, HelpCircle, Users, Bot, Orbit } from 'lucide-react';
+import { Player, GameMap, GameMode, GameSettings } from '../types/game';
+import { Volume2, VolumeX, Pause, HelpCircle, Users, Bot, Sliders, Globe } from 'lucide-react';
 import { isSoundMuted, toggleSoundMute } from '../audio/soundEngine';
 
 interface GameHUDProps {
@@ -10,9 +10,9 @@ interface GameHUDProps {
   roundNumber: number;
   maxRounds: number;
   mode: GameMode;
+  settings: GameSettings;
   showHpAndWeaponDetails: boolean;
-  zeroGravityMode: boolean;
-  onToggleZeroGravity: () => void;
+  onOpenSettings: () => void;
   onOpenControls: () => void;
   onTogglePause: () => void;
   onToggleMode: () => void;
@@ -25,9 +25,9 @@ export const GameHUD: React.FC<GameHUDProps> = ({
   roundNumber,
   maxRounds,
   mode,
+  settings,
   showHpAndWeaponDetails,
-  zeroGravityMode,
-  onToggleZeroGravity,
+  onOpenSettings,
   onOpenControls,
   onTogglePause,
   onToggleMode,
@@ -41,18 +41,26 @@ export const GameHUD: React.FC<GameHUDProps> = ({
 
   const p1HpPercent = Math.max(0, (player1.hp / player1.maxHp) * 100);
   const p2HpPercent = Math.max(0, (player2.hp / player2.maxHp) * 100);
-  const isZeroGActive = zeroGravityMode || !!currentMap.isZeroGravity;
 
   return (
-    <header className="absolute top-0 left-0 right-0 p-3 sm:p-4 pointer-events-none select-none z-10 flex flex-col gap-2">
+    <header className="absolute top-0 left-0 right-0 p-3 sm:p-4 pointer-events-none select-none z-10 flex flex-col gap-2 font-sans">
       {/* Top Bar Navigation & Controls */}
       <div className="flex items-center justify-between pointer-events-auto">
         {/* Left: Map & Mode Badge */}
         <div className="flex items-center gap-2">
-          <div className="bg-slate-900/85 backdrop-blur-md border border-slate-700/80 px-3 py-1.5 rounded-xl shadow-lg flex items-center gap-2 text-xs sm:text-sm">
-            <span className="text-amber-400 font-bold">Карта:</span>
+          <button
+            onClick={onOpenSettings}
+            title="Выбрать карту / изменить параметры"
+            className="bg-slate-900/85 hover:bg-slate-800 backdrop-blur-md border border-slate-700/80 hover:border-amber-500/60 px-3 py-1.5 rounded-xl shadow-lg flex items-center gap-2 text-xs sm:text-sm cursor-pointer transition active:scale-95"
+          >
+            <Globe className="w-3.5 h-3.5 text-amber-400" />
             <span className="text-white font-medium">{currentMap.nameRu}</span>
-          </div>
+            {settings.mapSelectionMode === 'locked' && (
+              <span className="text-[10px] px-1 py-0.2 rounded bg-blue-500/20 text-blue-300 font-bold border border-blue-500/30">
+                🔒
+              </span>
+            )}
+          </button>
 
           <button
             onClick={onToggleMode}
@@ -72,19 +80,13 @@ export const GameHUD: React.FC<GameHUDProps> = ({
             )}
           </button>
 
-          {/* Zero-G Mode Quick Toggle (Requirement 2) */}
+          {/* Quick Gravity Status Badge */}
           <button
-            onClick={onToggleZeroGravity}
-            title="Переключить режим невесомости"
-            className={`backdrop-blur-md border px-3 py-1.5 rounded-xl shadow-lg flex items-center gap-1.5 text-xs font-bold transition active:scale-95 cursor-pointer ${
-              isZeroGActive
-                ? 'bg-cyan-950/80 border-cyan-500/60 text-cyan-300 shadow-[0_0_12px_rgba(6,182,212,0.3)]'
-                : 'bg-slate-900/85 border-slate-700/80 text-slate-400 hover:text-slate-200'
-            }`}
+            onClick={onOpenSettings}
+            title="Настройки гравитации и физики"
+            className="bg-slate-900/85 hover:bg-slate-800 backdrop-blur-md border border-slate-700/80 px-2.5 py-1.5 rounded-xl shadow-lg flex items-center gap-1 text-xs text-amber-300 transition active:scale-95 cursor-pointer font-mono font-bold"
           >
-            <Orbit className={`w-3.5 h-3.5 ${isZeroGActive ? 'text-cyan-400 animate-spin' : ''}`} style={{ animationDuration: '4s' }} />
-            <span className="hidden sm:inline">Невесомость:</span>
-            <span>{isZeroGActive ? 'ВКЛ' : 'ВЫКЛ'}</span>
+            <span>{settings.gravity.toFixed(2)}G</span>
           </button>
         </div>
 
@@ -104,8 +106,15 @@ export const GameHUD: React.FC<GameHUDProps> = ({
           </div>
         </div>
 
-        {/* Right: Sound, Controls, Pause */}
+        {/* Right: Sound, Settings, Controls, Pause */}
         <div className="flex items-center gap-1.5 sm:gap-2">
+          <button
+            onClick={onOpenSettings}
+            title="Все параметры игры (Гравитация, Бомбы, Здоровье, Карта)"
+            className="p-2 bg-slate-900/85 hover:bg-slate-800 active:scale-95 border border-slate-700/80 hover:border-amber-500/50 rounded-xl text-amber-400 hover:text-amber-300 transition shadow-lg cursor-pointer"
+          >
+            <Sliders className="w-4 h-4" />
+          </button>
           <button
             onClick={handleMuteClick}
             title={muted ? 'Включить звук' : 'Выключить звук'}
@@ -115,10 +124,10 @@ export const GameHUD: React.FC<GameHUDProps> = ({
           </button>
           <button
             onClick={onOpenControls}
-            title="Управление и клавиши"
+            title="Клавиши управления"
             className="p-2 bg-slate-900/85 hover:bg-slate-800 active:scale-95 border border-slate-700/80 rounded-xl text-slate-300 hover:text-white transition shadow-lg cursor-pointer"
           >
-            <HelpCircle className="w-4 h-4 text-amber-400" />
+            <HelpCircle className="w-4 h-4 text-slate-300" />
           </button>
           <button
             onClick={onTogglePause}
@@ -130,7 +139,7 @@ export const GameHUD: React.FC<GameHUDProps> = ({
         </div>
       </div>
 
-      {/* Players Health & Weapon Status Bars (Shown only during first 3 seconds of the round) */}
+      {/* Players Health & Weapon Status Bars (Shown during start of round) */}
       {showHpAndWeaponDetails && (
         <div className="grid grid-cols-2 gap-3 sm:gap-6 mt-1 animate-in fade-in zoom-in-95 duration-200">
           {/* Player 1 (Blue) */}
@@ -138,84 +147,50 @@ export const GameHUD: React.FC<GameHUDProps> = ({
             <div className="flex items-center justify-between text-xs sm:text-sm">
               <div className="flex items-center gap-1.5">
                 <span className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse" />
-                <span className="font-extrabold text-blue-400 tracking-wide">
-                  {player1.name}
-                </span>
+                <span className="font-black text-white">{player1.name}</span>
               </div>
-              <div className="font-black text-white tabular-nums">
-                {Math.ceil(player1.hp)} <span className="text-[10px] text-slate-400 font-normal">HP</span>
-              </div>
+              <span className="font-mono font-bold text-blue-400 text-xs">
+                {Math.ceil(player1.hp)} / {player1.maxHp} HP
+              </span>
             </div>
 
-            {/* HP Bar */}
-            <div className="h-3 sm:h-3.5 bg-slate-900 rounded-full overflow-hidden p-0.5 border border-slate-700">
+            {/* Health Bar */}
+            <div className="w-full bg-slate-900 h-2.5 rounded-full overflow-hidden border border-slate-700 p-0.5">
               <div
-                className="h-full bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-400 rounded-full transition-all duration-150 shadow-[0_0_10px_rgba(59,130,246,0.5)]"
+                className="h-full bg-gradient-to-r from-blue-600 to-cyan-400 rounded-full transition-all duration-150"
                 style={{ width: `${p1HpPercent}%` }}
               />
             </div>
 
-            {/* Current Weapon Banner & Description */}
-            <div className="flex flex-col gap-1 pt-1 border-t border-slate-800/80">
-              <div className="flex items-center justify-between text-[11px] sm:text-xs text-slate-300">
-                <span className="text-slate-400 font-medium">Оружие:</span>
-                <span
-                  className="font-black px-2 py-0.5 rounded-md"
-                  style={{
-                    backgroundColor: `${player1.weapon.color}22`,
-                    color: player1.weapon.color,
-                    border: `1px solid ${player1.weapon.color}55`,
-                  }}
-                >
-                  {player1.weapon.nameRu}
-                </span>
-              </div>
-              <p className="text-[10px] text-slate-400 leading-tight">
-                {player1.weapon.description}
-              </p>
+            <div className="flex items-center justify-between text-[11px] text-slate-300 pt-0.5">
+              <span className="text-amber-300 font-bold">{player1.weapon.nameRu}</span>
+              <span className="text-[10px] text-slate-400">{player1.weapon.description}</span>
             </div>
           </div>
 
           {/* Player 2 (Red) */}
           <div className="bg-slate-950/90 backdrop-blur-md border border-red-500/50 p-2.5 rounded-2xl shadow-2xl flex flex-col gap-1.5">
             <div className="flex items-center justify-between text-xs sm:text-sm">
-              <div className="font-black text-white tabular-nums order-2 sm:order-1">
-                {Math.ceil(player2.hp)} <span className="text-[10px] text-slate-400 font-normal">HP</span>
-              </div>
-              <div className="flex items-center gap-1.5 order-1 sm:order-2">
-                <span className="font-extrabold text-red-400 tracking-wide">
-                  {mode === 'ai' ? 'Бот (Красный)' : player2.name}
-                </span>
+              <div className="flex items-center gap-1.5">
                 <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
+                <span className="font-black text-white">{player2.name}</span>
               </div>
+              <span className="font-mono font-bold text-red-400 text-xs">
+                {Math.ceil(player2.hp)} / {player2.maxHp} HP
+              </span>
             </div>
 
-            {/* HP Bar */}
-            <div className="h-3 sm:h-3.5 bg-slate-900 rounded-full overflow-hidden p-0.5 border border-slate-700">
+            {/* Health Bar */}
+            <div className="w-full bg-slate-900 h-2.5 rounded-full overflow-hidden border border-slate-700 p-0.5">
               <div
-                className="h-full bg-gradient-to-r from-orange-500 via-red-500 to-rose-600 rounded-full transition-all duration-150 ml-auto shadow-[0_0_10px_rgba(239,68,68,0.5)]"
+                className="h-full bg-gradient-to-r from-red-600 to-orange-400 rounded-full transition-all duration-150"
                 style={{ width: `${p2HpPercent}%` }}
               />
             </div>
 
-            {/* Current Weapon Banner & Description */}
-            <div className="flex flex-col gap-1 pt-1 border-t border-slate-800/80">
-              <div className="flex items-center justify-between text-[11px] sm:text-xs text-slate-300">
-                <span
-                  className="font-black px-2 py-0.5 rounded-md"
-                  style={{
-                    backgroundColor: `${player2.weapon.color}22`,
-                    color: player2.weapon.color,
-                    border: `1px solid ${player2.weapon.color}55`,
-                  }}
-                >
-                  {player2.weapon.nameRu}
-                </span>
-                <span className="text-slate-400 font-medium">Оружие:</span>
-              </div>
-              <p className="text-[10px] text-slate-400 text-right leading-tight">
-                {player2.weapon.description}
-              </p>
+            <div className="flex items-center justify-between text-[11px] text-slate-300 pt-0.5">
+              <span className="text-amber-300 font-bold">{player2.weapon.nameRu}</span>
+              <span className="text-[10px] text-slate-400">{player2.weapon.description}</span>
             </div>
           </div>
         </div>

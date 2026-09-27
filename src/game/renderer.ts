@@ -5,6 +5,7 @@ import {
   Projectile,
   Particle,
   BombEntity,
+  MeteoriteEntity,
   Weapon,
 } from '../types/game';
 import { getPlatformTopY } from './physics';
@@ -19,7 +20,8 @@ export function renderGame(
   bombs: BombEntity[],
   particles: Particle[],
   cameraShake: number,
-  showHpBar: boolean = false
+  showHpBar: boolean = false,
+  meteorites: MeteoriteEntity[] = []
 ): void {
   ctx.save();
 
@@ -42,18 +44,21 @@ export function renderGame(
   // 3. Draw Hazards (Lava / Void glow)
   drawHazards(ctx, width, height, map);
 
-  // 4. Draw Bombs
+  // 4. Draw Meteorites
+  drawMeteorites(ctx, meteorites);
+
+  // 5. Draw Bombs
   drawBombs(ctx, bombs);
 
-  // 5. Draw Projectiles
+  // 6. Draw Projectiles
   drawProjectiles(ctx, projectiles);
 
-  // 6. Draw Players (Agents)
+  // 7. Draw Players (Agents)
   for (const player of players) {
     drawAgent(ctx, player, showHpBar);
   }
 
-  // 7. Draw Particles & Damage Numbers
+  // 8. Draw Particles & Damage Numbers
   drawParticles(ctx, particles);
 
   ctx.restore();
@@ -175,6 +180,46 @@ function drawPlatforms(ctx: CanvasRenderingContext2D, map: GameMap): void {
     if (plat.type === 'curved') {
       // Royal Bridge curved architecture like the user screenshot!
       drawCurvedBridge(ctx, plat);
+    } else if (plat.type === 'spikes') {
+      // Deadly Spikes (Requirement: Spikes that quickly damage/kill)
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(plat.x, plat.y + 10, plat.width, plat.height - 10);
+      
+      const spikeCount = Math.floor(plat.width / 14);
+      const spikeW = plat.width / spikeCount;
+      for (let i = 0; i < spikeCount; i++) {
+        const sx = plat.x + i * spikeW;
+        ctx.beginPath();
+        ctx.moveTo(sx, plat.y + 10);
+        ctx.lineTo(sx + spikeW / 2, plat.y);
+        ctx.lineTo(sx + spikeW, plat.y + 10);
+        ctx.closePath();
+        ctx.fillStyle = i % 2 === 0 ? '#dc2626' : '#94a3b8';
+        ctx.fill();
+        ctx.strokeStyle = '#475569';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+    } else if (plat.type === 'hazard_block') {
+      // Hazardous Block
+      ctx.fillStyle = '#7f1d1d';
+      ctx.fillRect(plat.x, plat.y, plat.width, plat.height);
+
+      // Warning hazard diagonal stripes
+      ctx.fillStyle = '#eab308';
+      for (let sx = -plat.height; sx < plat.width; sx += 16) {
+        ctx.beginPath();
+        ctx.moveTo(plat.x + sx, plat.y);
+        ctx.lineTo(plat.x + sx + 8, plat.y);
+        ctx.lineTo(plat.x + sx + 8 + plat.height, plat.y + plat.height);
+        ctx.lineTo(plat.x + sx + plat.height, plat.y + plat.height);
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      ctx.strokeStyle = '#ef4444';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(plat.x, plat.y, plat.width, plat.height);
     } else if (plat.type === 'bouncer') {
       // Neon trampoline
       ctx.fillStyle = '#15803d';
@@ -206,6 +251,47 @@ function drawPlatforms(ctx: CanvasRenderingContext2D, map: GameMap): void {
       ctx.lineWidth = 2;
       ctx.strokeRect(plat.x, plat.y, plat.width, plat.height);
     }
+  }
+}
+
+function drawMeteorites(ctx: CanvasRenderingContext2D, meteorites: MeteoriteEntity[]): void {
+  for (const met of meteorites) {
+    if (!met.active) continue;
+
+    ctx.save();
+    ctx.translate(met.x, met.y);
+    ctx.rotate(met.rotation);
+
+    // Fiery glow aura
+    const grad = ctx.createRadialGradient(0, 0, met.radius * 0.4, 0, 0, met.radius * 1.5);
+    grad.addColorStop(0, '#f97316');
+    grad.addColorStop(0.5, '#dc2626');
+    grad.addColorStop(1, 'rgba(220, 38, 38, 0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(0, 0, met.radius * 1.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Asteroid Body
+    ctx.fillStyle = '#78350f';
+    ctx.beginPath();
+    const sides = 7;
+    for (let i = 0; i < sides; i++) {
+      const angle = (i / sides) * Math.PI * 2;
+      const r = met.radius * (0.8 + Math.sin(i * 3) * 0.2);
+      const px = Math.cos(angle) * r;
+      const py = Math.sin(angle) * r;
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.strokeStyle = '#ea580c';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.restore();
   }
 }
 
@@ -581,18 +667,16 @@ function drawAgent(
   ctx.lineTo(headX, spineBottomY);
   ctx.stroke();
 
-  // Legs with running / jumping physics
-  const legCycle = player.runCycle;
-  const isGrounded = player.isGrounded;
+  // Legs with running / jumping physics and articulated joints
+  const hipY = spineBottomY;
+  const leftFoot = player.joints.leftFoot;
+  const rightFoot = player.joints.rightFoot;
 
-  const leftKneeAngle = isGrounded ? Math.sin(legCycle) * 0.7 : -0.5;
-  const rightKneeAngle = isGrounded ? Math.sin(legCycle + Math.PI) * 0.7 : 0.4;
+  drawArticulatedLeg(ctx, headX - 4, hipY, leftFoot.x, leftFoot.y, facing, agentColor, true);
+  drawArticulatedLeg(ctx, headX + 4, hipY, rightFoot.x, rightFoot.y, facing, agentColor, false);
 
-  drawLeg(ctx, headX - 4, spineBottomY, leftKneeAngle, agentColor);
-  drawLeg(ctx, headX + 4, spineBottomY, rightKneeAngle, agentColor);
-
-  // Arm & Weapon
-  drawArmsAndWeapon(ctx, player, headX, spineTopY + 6, agentColor);
+  // Arm & Weapon with articulated shoulder-elbow-hand motion
+  drawArticulatedArmsAndWeapon(ctx, player, headX, spineTopY + 6, agentColor);
 
   // Signs of damage on the agent (blood cuts, scratches, critical warning pulse)
   if (player.hp < 75) {
@@ -682,42 +766,69 @@ function drawAgent(
   ctx.restore();
 }
 
-function drawLeg(
+function drawArticulatedLeg(
   ctx: CanvasRenderingContext2D,
   hipX: number,
   hipY: number,
-  angle: number,
-  color: string
+  targetFootX: number,
+  targetFootY: number,
+  facing: number,
+  color: string,
+  isLeft: boolean
 ): void {
-  const thighLen = 14;
-  const calfLen = 15;
+  const dx = targetFootX - hipX;
+  const dy = targetFootY - hipY;
+  const dist = Math.hypot(dx, dy);
 
-  const kneeX = hipX + Math.sin(angle) * thighLen;
-  const kneeY = hipY + Math.cos(angle) * thighLen;
+  const thigh = 15;
+  const shin = 16;
+  const maxLen = thigh + shin - 1;
+  const clampedDist = Math.min(dist, maxLen);
 
-  const footX = kneeX + Math.sin(angle * 0.6) * calfLen;
-  const footY = kneeY + Math.cos(angle * 0.6) * calfLen;
+  // Law of cosines for knee bend angle
+  const angle = Math.atan2(dy, dx);
+  const cosKnee = (thigh * thigh + clampedDist * clampedDist - shin * shin) / (2 * thigh * clampedDist);
+  const clampedCosKnee = Math.max(-1, Math.min(1, isNaN(cosKnee) ? 0 : cosKnee));
+  const kneeBendOffset = Math.acos(clampedCosKnee);
+
+  // Knee naturally bends towards facing direction
+  const bendSign = facing;
+  const thighAngle = angle + bendSign * kneeBendOffset;
+
+  const kneeX = hipX + Math.cos(thighAngle) * thigh;
+  const kneeY = hipY + Math.sin(thighAngle) * thigh;
 
   // Outline
-  ctx.lineWidth = 5;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = 5.5;
   ctx.strokeStyle = '#000000';
   ctx.beginPath();
   ctx.moveTo(hipX, hipY);
   ctx.lineTo(kneeX, kneeY);
-  ctx.lineTo(footX, footY);
+  ctx.lineTo(targetFootX, targetFootY);
   ctx.stroke();
 
-  // Color
+  // Primary Color
   ctx.lineWidth = 3.5;
   ctx.strokeStyle = color;
   ctx.beginPath();
   ctx.moveTo(hipX, hipY);
   ctx.lineTo(kneeX, kneeY);
-  ctx.lineTo(footX, footY);
+  ctx.lineTo(targetFootX, targetFootY);
+  ctx.stroke();
+
+  // Foot / Boot
+  ctx.fillStyle = '#0f172a';
+  ctx.beginPath();
+  ctx.arc(targetFootX, targetFootY, 3.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#000000';
+  ctx.lineWidth = 1.5;
   ctx.stroke();
 }
 
-function drawArmsAndWeapon(
+function drawArticulatedArmsAndWeapon(
   ctx: CanvasRenderingContext2D,
   player: Player,
   shoulderX: number,
@@ -728,42 +839,71 @@ function drawArmsAndWeapon(
   const w = player.weapon;
   const isAttacking = player.attacking;
 
-  // Back arm
-  ctx.lineWidth = 4;
+  // 1. Draw Back Arm (swings opposite to front or holds guard)
+  const backHand = player.joints.leftHand;
+  const backElbowX = (shoulderX + backHand.x) / 2 - facing * 3;
+  const backElbowY = (shoulderY + backHand.y) / 2 + 4;
+
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = 4.8;
   ctx.strokeStyle = '#000000';
   ctx.beginPath();
   ctx.moveTo(shoulderX, shoulderY);
-  ctx.lineTo(shoulderX - facing * 12, shoulderY + 12);
+  ctx.lineTo(backElbowX, backElbowY);
+  ctx.lineTo(backHand.x, backHand.y);
   ctx.stroke();
 
-  ctx.lineWidth = 3;
+  ctx.lineWidth = 3.2;
   ctx.strokeStyle = agentColor;
   ctx.beginPath();
   ctx.moveTo(shoulderX, shoulderY);
-  ctx.lineTo(shoulderX - facing * 12, shoulderY + 12);
+  ctx.lineTo(backElbowX, backElbowY);
+  ctx.lineTo(backHand.x, backHand.y);
   ctx.stroke();
 
-  // Front arm holding weapon
-  const armAngle = isAttacking ? (facing === 1 ? -0.2 : Math.PI + 0.2) : (facing === 1 ? 0.3 : Math.PI - 0.3);
-  const handX = shoulderX + Math.cos(armAngle) * 20;
-  const handY = shoulderY + Math.sin(armAngle) * 20;
+  // Hand fist
+  ctx.fillStyle = '#0f172a';
+  ctx.beginPath();
+  ctx.arc(backHand.x, backHand.y, 3, 0, Math.PI * 2);
+  ctx.fill();
 
-  ctx.lineWidth = 5;
+  // 2. Draw Front Arm (holding weapon, points with aim angle)
+  const aim = player.aimAngle || 0;
+  const armReach = isAttacking ? 22 : 18;
+  const frontHandX = shoulderX + facing * Math.cos(aim) * armReach;
+  const frontHandY = shoulderY + Math.sin(aim) * armReach + (isAttacking ? -4 : 2);
+
+  const frontElbowX = (shoulderX + frontHandX) / 2 + facing * 2;
+  const frontElbowY = (shoulderY + frontHandY) / 2 + 3;
+
+  ctx.lineWidth = 5.5;
   ctx.strokeStyle = '#000000';
   ctx.beginPath();
   ctx.moveTo(shoulderX, shoulderY);
-  ctx.lineTo(handX, handY);
+  ctx.lineTo(frontElbowX, frontElbowY);
+  ctx.lineTo(frontHandX, frontHandY);
   ctx.stroke();
 
-  ctx.lineWidth = 3.5;
+  ctx.lineWidth = 3.8;
   ctx.strokeStyle = agentColor;
   ctx.beginPath();
   ctx.moveTo(shoulderX, shoulderY);
-  ctx.lineTo(handX, handY);
+  ctx.lineTo(frontElbowX, frontElbowY);
+  ctx.lineTo(frontHandX, frontHandY);
   ctx.stroke();
 
-  // Weapon Rendering
-  drawWeaponInHand(ctx, w, handX, handY, facing, player, isAttacking);
+  // Front Hand Fist
+  ctx.fillStyle = '#0f172a';
+  ctx.beginPath();
+  ctx.arc(frontHandX, frontHandY, 3.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#000000';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // 3. Draw Weapon in Front Hand
+  drawWeaponInHand(ctx, w, frontHandX, frontHandY, facing, player, isAttacking);
 }
 
 function drawWeaponInHand(

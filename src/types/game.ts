@@ -46,21 +46,22 @@ export type MapId =
   | 'orbital_station'
   | 'deep_space_void'
   | 'moon_base'
-  | 'asteroid_belt';
+  | 'asteroid_belt'
+  | string; // Allows custom map IDs e.g. custom_16938282
 
 export interface Platform {
   x: number;
   y: number;
   width: number;
   height: number;
-  type: 'solid' | 'oneway' | 'curved' | 'bouncer';
+  type: 'solid' | 'oneway' | 'curved' | 'bouncer' | 'spikes' | 'hazard_block';
   curveOffsetY?: number; // for wavy royal bridge
   color?: string;
   label?: string;
 }
 
 export interface Hazard {
-  type: 'lava' | 'void' | 'laser';
+  type: 'lava' | 'void' | 'laser' | 'spikes';
   y: number;
   damagePerSec: number;
 }
@@ -91,12 +92,25 @@ export interface BarrelEntity {
   exploded: boolean;
 }
 
+export interface MeteoriteEntity {
+  id: number;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  radius: number;
+  rotation: number;
+  rotationSpeed: number;
+  damage: number;
+  active: boolean;
+}
+
 export interface GameMap {
   id: MapId;
   nameRu: string;
   nameEn: string;
   descriptionRu: string;
-  bgType: 'castle' | 'sky' | 'lava' | 'cyber' | 'bunker' | 'space';
+  bgType: 'castle' | 'sky' | 'lava' | 'cyber' | 'bunker' | 'space' | 'custom';
   platforms: Platform[];
   hazards: Hazard[];
   spawns: [ [number, number], [number, number] ]; // p1, p2 [x, y]
@@ -104,6 +118,11 @@ export interface GameMap {
   isZeroGravity?: boolean;
   initialBombs?: Array<{ x: number; y: number; timer: number }>;
   initialBarrels?: Array<{ x: number; y: number }>;
+  customWidth?: number;
+  customHeight?: number;
+  meteoritesEnabled?: boolean;
+  meteoriteSpawnInterval?: number; // in seconds
+  isCustom?: boolean;
 }
 
 export interface RagdollJoint {
@@ -163,7 +182,7 @@ export interface Player {
   aimAngle: number;
   aimCycle: number;
 
-  // Zero gravity jump charge & rocket launch
+  // Jump charge & rocket launch
   jumpHoldTimer: number; // in seconds
   jumpSuperCharged: boolean;
 }
@@ -209,7 +228,68 @@ export type GamePhase =
   | 'countdown'
   | 'fighting'
   | 'round_won'
-  | 'match_won';
+  | 'match_won'
+  | 'editor'
+  | 'settings';
 
 export type GameMode = 'pvp' | 'ai';
 export type AIDifficulty = 'easy' | 'medium' | 'hard';
+
+export type GravityPreset = 'moon' | 'low' | 'standard' | 'heavy' | 'jupiter' | 'custom';
+
+export interface GameSettings {
+  // Gravity
+  gravity: number;
+  gravityPreset: GravityPreset;
+
+  // Bombs
+  bombDamage: number;
+  bombBlastRadius: number;
+  bombTimer: number;
+  extraBombsCount: number;
+
+  // Combat Stats
+  playerMaxHp: number;
+  damageMultiplier: number;
+  knockbackMultiplier: number;
+  cooldownMultiplier: number;
+
+  // Movement & Physics
+  moveSpeedMultiplier: number;
+  jumpForceMultiplier: number;
+  projectileSpeedMultiplier: number;
+
+  // Match Rules
+  roundsToWin: number;
+  meteoritesFrequency: number;
+  mapSelectionMode: 'locked' | 'random' | 'sequential';
+  lockedMapId: string;
+
+  // Attack System
+  autoRangedShootOnMove: boolean;
+  autoMeleeOnContact: boolean;
+  cameraShakeIntensity: number;
+}
+
+export const DEFAULT_GAME_SETTINGS: GameSettings = {
+  gravity: 0.55,
+  gravityPreset: 'standard',
+  bombDamage: 65,
+  bombBlastRadius: 130,
+  bombTimer: 14,
+  extraBombsCount: 0,
+  playerMaxHp: 100,
+  damageMultiplier: 1.0,
+  knockbackMultiplier: 1.0,
+  cooldownMultiplier: 1.0,
+  moveSpeedMultiplier: 1.0,
+  jumpForceMultiplier: 1.0,
+  projectileSpeedMultiplier: 1.0,
+  roundsToWin: 5,
+  meteoritesFrequency: 1.0,
+  mapSelectionMode: 'random',
+  lockedMapId: 'castle_bridge',
+  autoRangedShootOnMove: true,
+  autoMeleeOnContact: true,
+  cameraShakeIntensity: 1.0,
+};

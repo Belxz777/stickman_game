@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { GameMode, AIDifficulty } from '../types/game';
-import { X, Users, Bot, Keyboard, Zap, ShieldAlert, Sparkles, Orbit, Rocket } from 'lucide-react';
+import { X, Users, Bot, Keyboard, Zap, Sparkles } from 'lucide-react';
 
 interface ControlsGuideModalProps {
   isOpen: boolean;
@@ -13,8 +13,6 @@ interface ControlsGuideModalProps {
   onSetP1AttackKey: (key: string) => void;
   p2AttackKey: string;
   onSetP2AttackKey: (key: string) => void;
-  zeroGravityMode: boolean;
-  onToggleZeroGravity: () => void;
 }
 
 export function formatKeyName(code: string): string {
@@ -41,8 +39,6 @@ export const ControlsGuideModal: React.FC<ControlsGuideModalProps> = ({
   onSetP1AttackKey,
   p2AttackKey,
   onSetP2AttackKey,
-  zeroGravityMode,
-  onToggleZeroGravity,
 }) => {
   const [listeningFor, setListeningFor] = useState<'p1' | 'p2' | null>(null);
 
@@ -77,14 +73,14 @@ export const ControlsGuideModal: React.FC<ControlsGuideModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 z-50 animate-in fade-in duration-200">
-      <div className="bg-slate-950 border border-slate-700 p-5 sm:p-6 rounded-3xl max-w-xl w-full shadow-2xl flex flex-col max-h-[92vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 z-50 animate-in fade-in duration-200 select-none">
+      <div className="bg-slate-950 border border-slate-700 p-5 sm:p-6 rounded-3xl max-w-xl w-full shadow-2xl flex flex-col max-h-[92vh] overflow-y-auto font-sans text-slate-100">
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-slate-800">
           <div className="flex items-center gap-2">
             <Keyboard className="w-5 h-5 text-amber-400" />
             <h2 className="text-lg sm:text-xl font-black text-white">
-              Управление и настройки боя
+              Клавиши Управления Игры
             </h2>
           </div>
           <button
@@ -95,40 +91,8 @@ export const ControlsGuideModal: React.FC<ControlsGuideModalProps> = ({
           </button>
         </div>
 
-        {/* Zero Gravity Mode Switcher (Requirement 2) */}
-        <div className="my-3.5 bg-gradient-to-r from-indigo-950/60 to-purple-950/60 border border-indigo-500/30 rounded-2xl p-3.5 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-indigo-500/20 text-indigo-400">
-              <Orbit className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="text-sm font-black text-white flex items-center gap-2">
-                Режим Невесомости (Zero-G)
-                {zeroGravityMode && (
-                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
-                    Активен
-                  </span>
-                )}
-              </div>
-              <div className="text-xs text-slate-300 mt-0.5">
-                Зажми прыжок на 2 секунды для супер-взлета вверх!
-              </div>
-            </div>
-          </div>
-          <button
-            onClick={onToggleZeroGravity}
-            className={`px-4 py-2 rounded-xl text-xs font-black transition cursor-pointer ${
-              zeroGravityMode
-                ? 'bg-cyan-500 text-slate-950 shadow-[0_0_15px_rgba(6,182,212,0.4)]'
-                : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-            }`}
-          >
-            {zeroGravityMode ? 'ВКЛЮЧЕН' : 'ВЫКЛ'}
-          </button>
-        </div>
-
         {/* Mode Selector */}
-        <div className="mb-4">
+        <div className="my-4">
           <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">
             Режим игры:
           </span>
@@ -170,7 +134,7 @@ export const ControlsGuideModal: React.FC<ControlsGuideModalProps> = ({
                         : 'bg-slate-800 text-slate-400 hover:text-white'
                     }`}
                   >
-                    {d === 'easy' ? 'Легкий' : d === 'medium' ? 'Средний' : 'Сложный'}
+                    {d === 'easy' ? 'Легко' : d === 'medium' ? 'Нормально' : 'Хардкор'}
                   </button>
                 ))}
               </div>
@@ -178,124 +142,106 @@ export const ControlsGuideModal: React.FC<ControlsGuideModalProps> = ({
           )}
         </div>
 
-        {/* Dual Keyboard Layout Guide & Key Remapper (Requirement 2) */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+        {/* Players Control Schemes Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 mb-4">
           {/* Player 1 (Blue) */}
-          <div className="bg-slate-900/80 border border-blue-500/40 rounded-2xl p-3.5 flex flex-col gap-2">
-            <div className="flex items-center justify-between text-blue-400 font-extrabold text-sm">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-blue-500" /> Игрок 1 (Синий)
+          <div className="bg-slate-900/90 border border-blue-500/40 rounded-2xl p-4 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <span className="w-3 h-3 rounded-full bg-blue-500" />
+                <h3 className="font-black text-white text-sm">Игрок 1 (Синий)</h3>
+              </div>
+              <div className="space-y-2 text-xs">
+                <div className="flex justify-between items-center text-slate-300">
+                  <span>Влево:</span>
+                  <kbd className="px-2 py-1 bg-slate-800 rounded border border-slate-700 font-mono font-bold text-white">A</kbd>
+                </div>
+                <div className="flex justify-between items-center text-slate-300">
+                  <span>Вправо:</span>
+                  <kbd className="px-2 py-1 bg-slate-800 rounded border border-slate-700 font-mono font-bold text-white">D</kbd>
+                </div>
+                <div className="flex justify-between items-center text-slate-300">
+                  <span>Прыжок:</span>
+                  <kbd className="px-2 py-1 bg-slate-800 rounded border border-slate-700 font-mono font-bold text-white">W</kbd>
+                </div>
+                <div className="flex justify-between items-center text-slate-300">
+                  <span>Вниз (платформа):</span>
+                  <kbd className="px-2 py-1 bg-slate-800 rounded border border-slate-700 font-mono font-bold text-white">S</kbd>
+                </div>
               </div>
             </div>
-            <div className="space-y-1.5 text-xs text-slate-300">
-              <div className="flex justify-between items-center">
-                <span className="text-slate-400">Движение:</span>
-                <span className="bg-slate-800 font-mono px-2 py-0.5 rounded border border-slate-700 text-white">
-                  A / D
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-400">Прыжок (зажми 2с):</span>
-                <span className="bg-slate-800 font-mono px-2 py-0.5 rounded border border-slate-700 text-white">
-                  W
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-400">Спуск вниз:</span>
-                <span className="bg-slate-800 font-mono px-2 py-0.5 rounded border border-slate-700 text-white">
-                  S
-                </span>
-              </div>
-              <div className="flex justify-between items-center pt-1 border-t border-slate-800">
-                <span className="text-slate-400 font-medium">Кнопка атаки:</span>
+
+            <div className="mt-4 pt-3 border-t border-slate-800">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-blue-400 font-bold">Спец-клавиша удара:</span>
                 <button
                   onClick={() => setListeningFor('p1')}
-                  className={`font-mono px-2.5 py-1 rounded-lg text-xs font-black transition cursor-pointer border ${
+                  className={`px-3 py-1.5 rounded-lg font-mono text-xs font-bold border transition cursor-pointer ${
                     listeningFor === 'p1'
                       ? 'bg-amber-500 text-slate-950 border-amber-400 animate-pulse'
-                      : 'bg-blue-600/30 border-blue-500 text-blue-200 hover:bg-blue-600/50'
+                      : 'bg-blue-600/30 text-blue-200 border-blue-500/50 hover:bg-blue-600/50'
                   }`}
                 >
-                  {listeningFor === 'p1' ? 'Нажмите клавишу...' : formatKeyName(p1AttackKey)}
+                  {listeningFor === 'p1' ? 'Нажми клавишу...' : formatKeyName(p1AttackKey)}
                 </button>
               </div>
             </div>
           </div>
 
           {/* Player 2 (Red) */}
-          <div className="bg-slate-900/80 border border-red-500/40 rounded-2xl p-3.5 flex flex-col gap-2">
-            <div className="flex items-center justify-between text-red-400 font-extrabold text-sm">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-red-500" /> Игрок 2 (Красный)
+          <div className="bg-slate-900/90 border border-red-500/40 rounded-2xl p-4 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <span className="w-3 h-3 rounded-full bg-red-500" />
+                <h3 className="font-black text-white text-sm">
+                  {mode === 'ai' ? 'Бот (Красный)' : 'Игрок 2 (Красный)'}
+                </h3>
+              </div>
+              <div className="space-y-2 text-xs">
+                <div className="flex justify-between items-center text-slate-300">
+                  <span>Влево:</span>
+                  <kbd className="px-2 py-1 bg-slate-800 rounded border border-slate-700 font-mono font-bold text-white">←</kbd>
+                </div>
+                <div className="flex justify-between items-center text-slate-300">
+                  <span>Вправо:</span>
+                  <kbd className="px-2 py-1 bg-slate-800 rounded border border-slate-700 font-mono font-bold text-white">→</kbd>
+                </div>
+                <div className="flex justify-between items-center text-slate-300">
+                  <span>Прыжок:</span>
+                  <kbd className="px-2 py-1 bg-slate-800 rounded border border-slate-700 font-mono font-bold text-white">↑</kbd>
+                </div>
+                <div className="flex justify-between items-center text-slate-300">
+                  <span>Вниз (платформа):</span>
+                  <kbd className="px-2 py-1 bg-slate-800 rounded border border-slate-700 font-mono font-bold text-white">↓</kbd>
+                </div>
               </div>
             </div>
-            <div className="space-y-1.5 text-xs text-slate-300">
-              <div className="flex justify-between items-center">
-                <span className="text-slate-400">Движение:</span>
-                <span className="bg-slate-800 font-mono px-2 py-0.5 rounded border border-slate-700 text-white">
-                  ← / →
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-400">Прыжок (зажми 2с):</span>
-                <span className="bg-slate-800 font-mono px-2 py-0.5 rounded border border-slate-700 text-white">
-                  ↑
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-400">Спуск вниз:</span>
-                <span className="bg-slate-800 font-mono px-2 py-0.5 rounded border border-slate-700 text-white">
-                  ↓
-                </span>
-              </div>
-              <div className="flex justify-between items-center pt-1 border-t border-slate-800">
-                <span className="text-slate-400 font-medium">Кнопка атаки:</span>
+
+            <div className="mt-4 pt-3 border-t border-slate-800">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-red-400 font-bold">Спец-клавиша удара:</span>
                 <button
                   onClick={() => setListeningFor('p2')}
-                  className={`font-mono px-2.5 py-1 rounded-lg text-xs font-black transition cursor-pointer border ${
+                  className={`px-3 py-1.5 rounded-lg font-mono text-xs font-bold border transition cursor-pointer ${
                     listeningFor === 'p2'
                       ? 'bg-amber-500 text-slate-950 border-amber-400 animate-pulse'
-                      : 'bg-red-600/30 border-red-500 text-red-200 hover:bg-red-600/50'
+                      : 'bg-red-600/30 text-red-200 border-red-500/50 hover:bg-red-600/50'
                   }`}
                 >
-                  {listeningFor === 'p2' ? 'Нажмите клавишу...' : formatKeyName(p2AttackKey)}
+                  {listeningFor === 'p2' ? 'Нажми клавишу...' : formatKeyName(p2AttackKey)}
                 </button>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Feature Explanations */}
-        <div className="bg-slate-900/60 rounded-2xl p-3.5 border border-slate-800 text-xs text-slate-300 space-y-2">
-          <div className="flex items-start gap-2">
-            <Rocket className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
-            <div>
-              <b className="text-cyan-300">Супер-взлёт в невесомости:</b> зажмите клавишу прыжка на <b>2 секунды</b> (над головой появится полоса заряда) — ваш агент резко взлетит ввысь с ударной волной!
-            </div>
-          </div>
-          <div className="flex items-start gap-2">
-            <Zap className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-            <div>
-              <b className="text-amber-300">Динамический угол ударов:</b> все оружия теперь плавно покачиваются вверх-вниз! Удары под углом вверх подбрасывают оппонента в воздух, а под углом вниз вбивают в платформу.
-            </div>
-          </div>
-          <div className="flex items-start gap-2">
-            <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
-            <div>
-              <b className="text-rose-300">Зона поражения бомбы:</b> вокруг тикающей бомбы видна пунктирная опасная окружность. При взрыве каждый видит честный радиус детонации!
-            </div>
-          </div>
-        </div>
-
-        {/* Close Button */}
-        <div className="mt-4 pt-3 border-t border-slate-800 flex justify-end">
-          <button
-            onClick={onClose}
-            className="py-2.5 px-6 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-black text-sm transition cursor-pointer"
-          >
-            Готово, в бой!
-          </button>
-        </div>
+        {/* Close / Confirm Button */}
+        <button
+          onClick={onClose}
+          className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold rounded-xl transition cursor-pointer shadow-lg active:scale-98"
+        >
+          Готово
+        </button>
       </div>
     </div>
   );

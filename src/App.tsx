@@ -9,8 +9,11 @@ import {
   Particle,
   BombEntity,
   BarrelEntity,
+  MeteoriteEntity,
+  GameSettings,
+  DEFAULT_GAME_SETTINGS,
 } from './types/game';
-import { MAPS, getRandomMap, getNextMap } from './game/maps';
+import { MAPS, getRandomMap, getNextMap, saveCustomMap, getAllMaps } from './game/maps';
 import { getRoundWeapons } from './game/weapons';
 import {
   createDefaultPlayer,
@@ -19,6 +22,8 @@ import {
   updateProjectiles,
   updateBombs,
   updateParticles,
+  updateMeteorites,
+  setGravity,
   InputState,
 } from './game/physics';
 import { computeAIInput } from './game/ai';
@@ -27,13 +32,14 @@ import { GameHUD } from './components/GameHUD';
 import { RoundOverlay } from './components/RoundOverlay';
 import { MatchWinnerModal } from './components/MatchWinnerModal';
 import { ControlsGuideModal } from './components/ControlsGuideModal';
+import { GameSettingsModal } from './components/GameSettingsModal';
 import { StartScreen } from './components/StartScreen';
 import { MobileControls } from './components/MobileControls';
+import { MapEditor } from './components/MapEditor';
 import { playCountdownBeep, playRoundWin, playVictoryFanfare } from './audio/soundEngine';
 
 const CANVAS_WIDTH = 1000;
 const CANVAS_HEIGHT = 600;
-const MAX_ROUNDS_TO_WIN = 5;
 
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -48,16 +54,25 @@ export default function App() {
   const [matchWinner, setMatchWinner] = useState<Player | null>(null);
   const [isPaused, setIsPaused] = useState<boolean>(false);
   const [isControlsOpen, setIsControlsOpen] = useState<boolean>(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
+  const [isEditorOpen, setIsEditorOpen] = useState<boolean>(false);
   const [showHpAndWeaponDetails, setShowHpAndWeaponDetails] = useState<boolean>(true);
 
-  // Zero-Gravity Mode & Attack Key Remapping (Requirement 2)
-  const [zeroGravityMode, setZeroGravityMode] = useState<boolean>(() => {
+  // Comprehensive Game Settings (Requirement 1: full configuration in separate menu)
+  const [settings, setSettings] = useState<GameSettings>(() => {
     try {
-      return localStorage.getItem('agent_battle_zero_g') === '1';
-    } catch {
-      return false;
-    }
+      const saved = localStorage.getItem('agent_battle_custom_settings');
+      if (saved) return { ...DEFAULT_GAME_SETTINGS, ...JSON.parse(saved) };
+    } catch {}
+    return DEFAULT_GAME_SETTINGS;
   });
+
+  const updateSettings = useCallback((newSettings: GameSettings) => {
+    setSettings(newSettings);
+    try {
+      localStorage.setItem('agent_battle_custom_settings', JSON.stringify(newSettings));
+    } catch {}
+  }, []);
 
   const [p1AttackKey, setP1AttackKey] = useState<string>(() => {
     try {
@@ -75,16 +90,6 @@ export default function App() {
     }
   });
 
-  const toggleZeroGravity = useCallback(() => {
-    setZeroGravityMode((prev) => {
-      const next = !prev;
-      try {
-        localStorage.setItem('agent_battle_zero_g', next ? '1' : '0');
-      } catch {}
-      return next;
-    });
-  }, []);
-
   const updateP1AttackKey = useCallback((key: string) => {
     setP1AttackKey(key);
     try {
@@ -100,20 +105,25 @@ export default function App() {
   }, []);
 
   // Active Map
-  const [currentMap, setCurrentMap] = useState<GameMap>(MAPS.castle_bridge);
+  const [currentMap, setCurrentMap] = useState<GameMap>(() => {
+    const all = getAllMaps();
+    const locked = all.find((m) => m.id === settings.lockedMapId);
+    return locked || MAPS.castle_bridge;
+  });
 
   // Game Engine Entities (Stored in refs for 60fps high performance loop)
   const initialWeapons = useRef(getRoundWeapons());
   const player1Ref = useRef<Player>(
-    createDefaultPlayer('p1', initialWeapons.current[0], MAPS.castle_bridge.spawns[0])
+    createDefaultPlayer('p1', initialWeapons.current[0], MAPS.castle_bridge.spawns[0], settings.playerMaxHp)
   );
   const player2Ref = useRef<Player>(
-    createDefaultPlayer('p2', initialWeapons.current[1], MAPS.castle_bridge.spawns[1])
+    createDefaultPlayer('p2', initialWeapons.current[1], MAPS.castle_bridge.spawns[1], settings.playerMaxHp)
   );
 
   const projectilesRef = useRef<Projectile[]>([]);
   const bombsRef = useRef<BombEntity[]>([]);
   const barrelsRef = useRef<BarrelEntity[]>([]);
+  const meteoritesRef = useRef<MeteoriteEntity[]>([]);
   const particlesRef = useRef<Particle[]>([]);
   const cameraShakeRef = useRef<{ value: number }>({ value: 0 });
 
@@ -137,7 +147,7 @@ export default function App() {
   // UI trigger to force re-render HUD health/score
   const [, setTick] = useState<number>(0);
 
-  // Initialize Map Bombs
+  // Initialize Map Bombs & Meteorites with custom settings
   const setupMapEntities = useCallback((map: GameMap) => {
     bombsRef.current = (map.initialBombs || []).map((b, idx) => ({
       id: idx + 1,
@@ -146,27 +156,39 @@ export default function App() {
       vx: 0,
       vy: 0,
       radius: 20,
-      timer: b.timer,
-      maxTimer: b.timer,
+      timer: settings.bombTimer,
+      maxTimer: settings.bombTimer,
       exploded: false,
-      damage: 65,
-      blastRadius: 130,
+      damage: settings.bombDamage,
+      blastRadius: settings.bombBlastRadius,
     }));
     projectilesRef.current = [];
     particlesRef.current = [];
-  }, []);
+    meteoritesRef.current = [];
+  }, [settings.bombTimer, settings.bombDamage, settings.bombBlastRadius]);
 
-  // Start a new Round
+  // Start a new Round (Requirement: Play only on selected map if locked)
   const startNewRound = useCallback(
-    (nextMap?: GameMap) => {
-      const map = nextMap || getRandomMap();
+    (forcedMap?: GameMap) => {
+      let map = forcedMap;
+      if (!map) {
+        if (settings.mapSelectionMode === 'locked') {
+          const found = getAllMaps().find((m) => m.id === settings.lockedMapId);
+          map = found || currentMap;
+        } else if (settings.mapSelectionMode === 'sequential') {
+          map = getNextMap(currentMap.id);
+        } else {
+          map = getRandomMap();
+        }
+      }
+
       setCurrentMap(map);
       setupMapEntities(map);
 
       // Random Weapons for each round
       const [w1, w2] = getRoundWeapons();
-      resetPlayerForRound(player1Ref.current, w1, map.spawns[0]);
-      resetPlayerForRound(player2Ref.current, w2, map.spawns[1]);
+      resetPlayerForRound(player1Ref.current, w1, map.spawns[0], settings.playerMaxHp);
+      resetPlayerForRound(player2Ref.current, w2, map.spawns[1], settings.playerMaxHp);
 
       setRoundWinner(null);
       setCountdown(3);
@@ -195,57 +217,41 @@ export default function App() {
         }
       }, 700);
     },
-    [setupMapEntities]
+    [currentMap, setupMapEntities, settings.mapSelectionMode, settings.lockedMapId, settings.playerMaxHp]
   );
 
-  // Full Match Reset
-  const startMatch = useCallback(
-    (selectedMode: GameMode) => {
-      setMode(selectedMode);
-      setRoundNumber(1);
-      player1Ref.current.score = 0;
-      player1Ref.current.kills = 0;
-      player1Ref.current.damageDealt = 0;
-      player2Ref.current.score = 0;
-      player2Ref.current.kills = 0;
-      player2Ref.current.damageDealt = 0;
-      setMatchWinner(null);
+  // Start a full Match
+  const startMatch = (chosenMode: GameMode) => {
+    setMode(chosenMode);
+    setRoundNumber(1);
+    player1Ref.current.score = 0;
+    player2Ref.current.score = 0;
+    player1Ref.current.kills = 0;
+    player2Ref.current.kills = 0;
+    player1Ref.current.damageDealt = 0;
+    player2Ref.current.damageDealt = 0;
+    setMatchWinner(null);
 
-      // First map: Castle Bridge as in the reference screenshot!
-      startNewRound(MAPS.castle_bridge);
-    },
-    [startNewRound]
-  );
+    let initialMap = currentMap;
+    if (settings.mapSelectionMode === 'locked') {
+      const found = getAllMaps().find((m) => m.id === settings.lockedMapId);
+      if (found) initialMap = found;
+    }
+    startNewRound(initialMap);
+  };
 
-  // Handle Keyboard Listeners
+  // Keyboard Event Listeners
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't capture keys if typing in an input
-      if (
-        e.target instanceof HTMLInputElement ||
-        e.target instanceof HTMLTextAreaElement
-      ) {
-        return;
-      }
-
-      // Prevent scrolling on arrow keys and space
-      if (
-        ['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)
-      ) {
-        e.preventDefault();
+      // Pause
+      if (e.code === 'KeyP' || e.code === 'Escape') {
+        if (phase === 'fighting') {
+          setIsPaused((prev) => !prev);
+          return;
+        }
       }
 
       keysPressed.current.add(e.code);
-
-      // Quick next round advance with space
-      if (phase === 'round_won' && (e.code === 'Space' || e.code === 'Enter')) {
-        startNewRound(getNextMap(currentMap.id));
-      }
-
-      // Pause toggle
-      if (e.code === 'Escape') {
-        setIsPaused((prev) => !prev);
-      }
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
@@ -259,27 +265,27 @@ export default function App() {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [phase, currentMap, startNewRound]);
+  }, [phase]);
 
-  // Main 60 FPS Game Loop
+  // Main 60FPS Game Loop
   useEffect(() => {
     let animationFrameId: number;
     let lastTime = performance.now();
     let hudUpdateCounter = 0;
 
-    const gameLoop = (currentTime: number) => {
-      const dt = Math.min(0.045, (currentTime - lastTime) / 1000);
-      lastTime = currentTime;
+    const gameLoop = (time: number) => {
+      const dt = Math.min((time - lastTime) / 1000, 0.05); // cap delta at 50ms
+      lastTime = time;
 
       const canvas = canvasRef.current;
       const ctx = canvas?.getContext('2d');
 
       if (!isPaused && (phase === 'fighting' || phase === 'countdown' || phase === 'round_won')) {
+        const keys = keysPressed.current;
         const p1 = player1Ref.current;
         const p2 = player2Ref.current;
-        const keys = keysPressed.current;
 
-        // Player 1 Input (Custom key or F / Space)
+        // Player 1 Input
         const p1Input: InputState = {
           left: keys.has('KeyA') || p1TouchInput.current.left,
           right: keys.has('KeyD') || p1TouchInput.current.right,
@@ -292,7 +298,7 @@ export default function App() {
             p1TouchInput.current.attack,
         };
 
-        // Player 2 Input (Custom key or Enter / L, or AI Bot)
+        // Player 2 Input (Human or AI)
         let p2Input: InputState;
         if (mode === 'ai') {
           p2Input = computeAIInput(
@@ -317,7 +323,10 @@ export default function App() {
         }
 
         if (phase === 'fighting') {
-          // Physics updates with Zero-G mode support
+          // Set customizable gravity (Requirement 1)
+          setGravity(settings.gravity);
+
+          // Physics updates with custom multipliers
           updatePlayer(
             p1,
             p1Input,
@@ -327,7 +336,10 @@ export default function App() {
             particlesRef.current,
             cameraShakeRef.current,
             dt,
-            zeroGravityMode
+            settings.moveSpeedMultiplier,
+            settings.jumpForceMultiplier,
+            settings.damageMultiplier,
+            settings.cooldownMultiplier
           );
 
           updatePlayer(
@@ -339,7 +351,20 @@ export default function App() {
             particlesRef.current,
             cameraShakeRef.current,
             dt,
-            zeroGravityMode
+            settings.moveSpeedMultiplier,
+            settings.jumpForceMultiplier,
+            settings.damageMultiplier,
+            settings.cooldownMultiplier
+          );
+
+          updateMeteorites(
+            meteoritesRef.current,
+            [p1, p2],
+            currentMap,
+            particlesRef.current,
+            cameraShakeRef.current,
+            dt,
+            settings.meteoritesFrequency
           );
 
           updateBombs(
@@ -366,7 +391,6 @@ export default function App() {
           if ((p1.isDead || p2.isDead) && !roundWinner) {
             let winner: Player;
             if (p1.isDead && p2.isDead) {
-              // Tie: whoever died last wins, or P2
               winner = p1.deathTime > p2.deathTime ? p1 : p2;
             } else if (p1.isDead) {
               winner = p2;
@@ -379,8 +403,8 @@ export default function App() {
             setPhase('round_won');
             playRoundWin();
 
-            // Check if Match Won
-            if (winner.score >= MAX_ROUNDS_TO_WIN) {
+            // Check if Match Won (Configurable rounds to win)
+            if (winner.score >= settings.roundsToWin) {
               setTimeout(() => {
                 setMatchWinner(winner);
                 setPhase('match_won');
@@ -390,14 +414,14 @@ export default function App() {
               // Schedule next round automatically after 2.5s
               setTimeout(() => {
                 setRoundNumber((r) => r + 1);
-                startNewRound(getNextMap(currentMap.id));
+                startNewRound();
               }, 2500);
             }
           }
         } else if (phase === 'round_won') {
           // Keep updating ragdoll & particles during round won slow motion
-          if (p1.isDead) updatePlayer(p1, p1Input, currentMap, p2, [], particlesRef.current, cameraShakeRef.current, dt, zeroGravityMode);
-          if (p2.isDead) updatePlayer(p2, p2Input, currentMap, p1, [], particlesRef.current, cameraShakeRef.current, dt, zeroGravityMode);
+          if (p1.isDead) updatePlayer(p1, p1Input, currentMap, p2, [], particlesRef.current, cameraShakeRef.current, dt);
+          if (p2.isDead) updatePlayer(p2, p2Input, currentMap, p1, [], particlesRef.current, cameraShakeRef.current, dt);
         }
 
         updateParticles(particlesRef.current, dt);
@@ -410,7 +434,7 @@ export default function App() {
         }
       }
 
-      // Render to Canvas (Requirement 3: ALWAYS show health and HP above agents in combat!)
+      // Render to Canvas (ALWAYS show health and HP above agents in combat!)
       if (ctx) {
         renderGame(
           ctx,
@@ -421,8 +445,9 @@ export default function App() {
           projectilesRef.current,
           bombsRef.current,
           particlesRef.current,
-          cameraShakeRef.current.value,
-          true
+          cameraShakeRef.current.value * settings.cameraShakeIntensity,
+          true,
+          meteoritesRef.current
         );
       }
 
@@ -442,21 +467,21 @@ export default function App() {
     currentMap,
     roundWinner,
     showHpAndWeaponDetails,
-    zeroGravityMode,
+    settings,
     p1AttackKey,
     p2AttackKey,
     startNewRound,
   ]);
 
   return (
-    <div className="relative w-full h-screen bg-slate-950 flex items-center justify-center overflow-hidden font-sans select-none">
-      {/* Aspect Ratio Canvas Container */}
-      <div className="relative w-full max-w-[1200px] aspect-[5/3] max-h-screen flex items-center justify-center p-1 sm:p-2">
+    <div className="flex flex-col items-center justify-center min-h-screen bg-slate-950 text-slate-100 p-2 sm:p-4 select-none font-sans overflow-hidden">
+      {/* Game Canvas Container */}
+      <div className="relative w-full max-w-[1000px] aspect-[5/3] bg-black rounded-3xl overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.8)] border border-slate-800">
         <canvas
           ref={canvasRef}
           width={CANVAS_WIDTH}
           height={CANVAS_HEIGHT}
-          className="w-full h-full object-contain rounded-2xl shadow-[0_0_50px_rgba(0,0,0,0.8)] border border-slate-800 bg-slate-900"
+          className="w-full h-full object-contain"
         />
 
         {/* In-game HUD */}
@@ -466,18 +491,15 @@ export default function App() {
             player2={player2Ref.current}
             currentMap={currentMap}
             roundNumber={roundNumber}
-            maxRounds={MAX_ROUNDS_TO_WIN}
+            maxRounds={settings.roundsToWin}
             mode={mode}
+            settings={settings}
             showHpAndWeaponDetails={showHpAndWeaponDetails}
-            zeroGravityMode={zeroGravityMode}
-            onToggleZeroGravity={toggleZeroGravity}
+            onOpenSettings={() => setIsSettingsOpen(true)}
             onOpenControls={() => setIsControlsOpen(true)}
             onTogglePause={() => setIsPaused((p) => !p)}
             onToggleMode={() =>
-              setMode((m) => {
-                const next = m === 'pvp' ? 'ai' : 'pvp';
-                return next;
-              })
+              setMode((m) => (m === 'pvp' ? 'ai' : 'pvp'))
             }
           />
         )}
@@ -490,7 +512,7 @@ export default function App() {
           currentMap={currentMap}
           onNextRoundNow={() => {
             setRoundNumber((r) => r + 1);
-            startNewRound(getNextMap(currentMap.id));
+            startNewRound();
           }}
         />
 
@@ -519,11 +541,20 @@ export default function App() {
                 <button
                   onClick={() => {
                     setIsPaused(false);
+                    setIsSettingsOpen(true);
+                  }}
+                  className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-amber-300 font-semibold rounded-xl transition cursor-pointer flex items-center justify-center gap-2"
+                >
+                  ⚙️ Настройки и Физика
+                </button>
+                <button
+                  onClick={() => {
+                    setIsPaused(false);
                     setIsControlsOpen(true);
                   }}
                   className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-xl transition cursor-pointer"
                 >
-                  Управление и настройки
+                  Клавиши управления
                 </button>
                 <button
                   onClick={() => {
@@ -554,14 +585,42 @@ export default function App() {
           <StartScreen
             onStartGame={(selectedMode) => startMatch(selectedMode)}
             onOpenControls={() => setIsControlsOpen(true)}
-            zeroGravityMode={zeroGravityMode}
-            onToggleZeroGravity={toggleZeroGravity}
+            onOpenSettings={() => setIsSettingsOpen(true)}
+            onOpenEditor={() => setIsEditorOpen(true)}
+            settings={settings}
+            currentMap={currentMap}
             p1AttackKey={p1AttackKey}
             p2AttackKey={p2AttackKey}
           />
         )}
 
-        {/* Controls and Settings Modal */}
+        {/* Dedicated Game Settings Modal */}
+        <GameSettingsModal
+          isOpen={isSettingsOpen}
+          onClose={() => setIsSettingsOpen(false)}
+          settings={settings}
+          onUpdateSettings={updateSettings}
+          currentMap={currentMap}
+          onSelectMap={(map) => {
+            setCurrentMap(map);
+            updateSettings({ ...settings, lockedMapId: map.id });
+          }}
+        />
+
+        {/* Map Editor Modal */}
+        {isEditorOpen && (
+          <MapEditor
+            onClose={() => setIsEditorOpen(false)}
+            onSaveMap={(map) => {
+              saveCustomMap(map);
+              setCurrentMap(map);
+              updateSettings({ ...settings, lockedMapId: map.id });
+              setIsEditorOpen(false);
+            }}
+          />
+        )}
+
+        {/* Controls Modal */}
         <ControlsGuideModal
           isOpen={isControlsOpen}
           onClose={() => setIsControlsOpen(false)}
@@ -573,8 +632,6 @@ export default function App() {
           onSetP1AttackKey={updateP1AttackKey}
           p2AttackKey={p2AttackKey}
           onSetP2AttackKey={updateP2AttackKey}
-          zeroGravityMode={zeroGravityMode}
-          onToggleZeroGravity={toggleZeroGravity}
         />
       </div>
     </div>
