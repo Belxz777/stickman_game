@@ -36,6 +36,8 @@ import { GameSettingsModal } from './components/GameSettingsModal';
 import { StartScreen } from './components/StartScreen';
 import { MobileControls } from './components/MobileControls';
 import { MapEditor } from './components/MapEditor';
+import { WeaponEditorModal } from './components/WeaponEditorModal';
+import { PauseMenu } from './components/PauseMenu';
 import { playCountdownBeep, playRoundWin, playVictoryFanfare } from './audio/soundEngine';
 
 const CANVAS_WIDTH = 1000;
@@ -56,6 +58,7 @@ export default function App() {
   const [isControlsOpen, setIsControlsOpen] = useState<boolean>(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
   const [isEditorOpen, setIsEditorOpen] = useState<boolean>(false);
+  const [isWeaponEditorOpen, setIsWeaponEditorOpen] = useState<boolean>(false);
   const [showHpAndWeaponDetails, setShowHpAndWeaponDetails] = useState<boolean>(true);
 
   // Comprehensive Game Settings (Requirement 1: full configuration in separate menu)
@@ -323,8 +326,12 @@ export default function App() {
         }
 
         if (phase === 'fighting') {
-          // Set customizable gravity (Requirement 1)
-          setGravity(settings.gravity);
+          // Set customizable gravity (supports map default gravity or global setting)
+          const effectiveGravity =
+            settings.useMapDefaultGravity && currentMap.defaultGravity !== undefined
+              ? currentMap.defaultGravity
+              : settings.gravity;
+          setGravity(effectiveGravity);
 
           // Physics updates with custom multipliers and auto-fire delay
           updatePlayer(
@@ -491,18 +498,10 @@ export default function App() {
           <GameHUD
             player1={player1Ref.current}
             player2={player2Ref.current}
-            currentMap={currentMap}
             roundNumber={roundNumber}
             maxRounds={settings.roundsToWin}
-            mode={mode}
-            settings={settings}
             showHpAndWeaponDetails={showHpAndWeaponDetails}
-            onOpenSettings={() => setIsSettingsOpen(true)}
-            onOpenControls={() => setIsControlsOpen(true)}
             onTogglePause={() => setIsPaused((p) => !p)}
-            onToggleMode={() =>
-              setMode((m) => (m === 'pvp' ? 'ai' : 'pvp'))
-            }
           />
         )}
 
@@ -527,50 +526,45 @@ export default function App() {
           />
         )}
 
-        {/* Pause Overlay */}
-        {isPaused && (
-          <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-md flex flex-col items-center justify-center z-30 p-4">
-            <div className="bg-slate-900 border border-slate-700 p-6 rounded-3xl max-w-sm w-full text-center shadow-2xl">
-              <h2 className="text-2xl font-black text-white mb-2 uppercase">Пауза</h2>
-              <p className="text-xs text-slate-400 mb-6">Игра временно приостановлена</p>
-              <div className="flex flex-col gap-2.5">
-                <button
-                  onClick={() => setIsPaused(false)}
-                  className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold rounded-xl transition cursor-pointer"
-                >
-                  Продолжить бой
-                </button>
-                <button
-                  onClick={() => {
-                    setIsPaused(false);
-                    setIsSettingsOpen(true);
-                  }}
-                  className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-amber-300 font-semibold rounded-xl transition cursor-pointer flex items-center justify-center gap-2"
-                >
-                  ⚙️ Настройки и Физика
-                </button>
-                <button
-                  onClick={() => {
-                    setIsPaused(false);
-                    setIsControlsOpen(true);
-                  }}
-                  className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-xl transition cursor-pointer"
-                >
-                  Клавиши управления
-                </button>
-                <button
-                  onClick={() => {
-                    setIsPaused(false);
-                    startMatch(mode);
-                  }}
-                  className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-xl transition cursor-pointer"
-                >
-                  Начать матч заново
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Rich Pause Menu Modal with Arena Details, Mode Info, Physics & Fast Actions */}
+        <PauseMenu
+          isOpen={isPaused}
+          onResume={() => setIsPaused(false)}
+          onRestartMatch={() => {
+            setIsPaused(false);
+            startMatch(mode);
+          }}
+          onExitToMenu={() => {
+            setIsPaused(false);
+            setPhase('start_screen');
+          }}
+          onOpenSettings={() => {
+            setIsPaused(false);
+            setIsSettingsOpen(true);
+          }}
+          onOpenControls={() => {
+            setIsPaused(false);
+            setIsControlsOpen(true);
+          }}
+          onOpenMapEditor={() => {
+            setIsPaused(false);
+            setIsEditorOpen(true);
+          }}
+          onOpenWeaponEditor={() => {
+            setIsPaused(false);
+            setIsWeaponEditorOpen(true);
+          }}
+          currentMap={currentMap}
+          mode={mode}
+          onToggleMode={() => setMode((m) => (m === 'pvp' ? 'ai' : 'pvp'))}
+          aiDifficulty={aiDifficulty}
+          onChangeAiDifficulty={(diff) => setAiDifficulty(diff)}
+          settings={settings}
+          onUpdateGravity={(g) => {
+            setSettings((prev) => ({ ...prev, gravity: g }));
+            setGravity(g);
+          }}
+        />
 
         {/* Match Champion Modal */}
         {phase === 'match_won' && matchWinner && (
@@ -589,6 +583,7 @@ export default function App() {
             onOpenControls={() => setIsControlsOpen(true)}
             onOpenSettings={() => setIsSettingsOpen(true)}
             onOpenEditor={() => setIsEditorOpen(true)}
+            onOpenWeapons={() => setIsWeaponEditorOpen(true)}
             settings={settings}
             currentMap={currentMap}
             p1AttackKey={p1AttackKey}
@@ -621,6 +616,17 @@ export default function App() {
             }}
           />
         )}
+
+        {/* Weapon Configurator Modal (JSON & Stats) */}
+        <WeaponEditorModal
+          isOpen={isWeaponEditorOpen}
+          onClose={() => setIsWeaponEditorOpen(false)}
+          onWeaponsUpdated={() => {
+            const [w1, w2] = getRoundWeapons();
+            if (player1Ref.current) player1Ref.current.weapon = w1;
+            if (player2Ref.current) player2Ref.current.weapon = w2;
+          }}
+        />
 
         {/* Controls Modal */}
         <ControlsGuideModal

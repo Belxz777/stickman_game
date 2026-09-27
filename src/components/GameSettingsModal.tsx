@@ -239,6 +239,30 @@ export const GameSettingsModal: React.FC<GameSettingsModalProps> = ({
                     <span>1.50G (Сверхтяжелая)</span>
                   </div>
                 </div>
+
+                {/* Use map default gravity toggle */}
+                <div className="border-t border-slate-800 pt-3 flex items-center justify-between">
+                  <div>
+                    <span className="text-xs font-bold text-white block">
+                      Использовать дефолтную гравитацию карты
+                    </span>
+                    <span className="text-[10px] text-slate-400">
+                      Автоматически устанавливать гравитацию, заданную автором для текущей арены
+                    </span>
+                  </div>
+                  <button
+                    onClick={() =>
+                      handleChange('useMapDefaultGravity', !settings.useMapDefaultGravity)
+                    }
+                    className={`px-3 py-1 rounded-lg text-xs font-black transition cursor-pointer ${
+                      settings.useMapDefaultGravity
+                        ? 'bg-cyan-500 text-slate-950 font-black'
+                        : 'bg-slate-800 text-slate-400'
+                    }`}
+                  >
+                    {settings.useMapDefaultGravity ? 'ВКЛ' : 'ВЫКЛ'}
+                  </button>
+                </div>
               </div>
             </div>
           )}

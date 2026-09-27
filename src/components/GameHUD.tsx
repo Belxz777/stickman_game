@@ -6,31 +6,19 @@ import { isSoundMuted, toggleSoundMute } from '../audio/soundEngine';
 interface GameHUDProps {
   player1: Player;
   player2: Player;
-  currentMap: GameMap;
   roundNumber: number;
   maxRounds: number;
-  mode: GameMode;
-  settings: GameSettings;
   showHpAndWeaponDetails: boolean;
-  onOpenSettings: () => void;
-  onOpenControls: () => void;
   onTogglePause: () => void;
-  onToggleMode: () => void;
 }
 
 export const GameHUD: React.FC<GameHUDProps> = ({
   player1,
   player2,
-  currentMap,
   roundNumber,
   maxRounds,
-  mode,
-  settings,
   showHpAndWeaponDetails,
-  onOpenSettings,
-  onOpenControls,
   onTogglePause,
-  onToggleMode,
 }) => {
   const [muted, setMuted] = React.useState(isSoundMuted());
 
@@ -44,54 +32,25 @@ export const GameHUD: React.FC<GameHUDProps> = ({
 
   return (
     <header className="absolute top-0 left-0 right-0 p-3 sm:p-4 pointer-events-none select-none z-10 flex flex-col gap-2 font-sans">
-      {/* Top Bar Navigation & Controls */}
+      {/* Top Bar: Only Sound (Left), Round Timer/Score (Center), and Pause (Right) */}
       <div className="flex items-center justify-between pointer-events-auto">
-        {/* Left: Map & Mode Badge */}
-        <div className="flex items-center gap-2">
+        {/* Left: Sound Toggle Button */}
+        <div className="flex items-center">
           <button
-            onClick={onOpenSettings}
-            title="Выбрать карту / изменить параметры"
-            className="bg-slate-900/85 hover:bg-slate-800 backdrop-blur-md border border-slate-700/80 hover:border-amber-500/60 px-3 py-1.5 rounded-xl shadow-lg flex items-center gap-2 text-xs sm:text-sm cursor-pointer transition active:scale-95"
+            onClick={handleMuteClick}
+            title={muted ? 'Включить звук' : 'Выключить звук'}
+            className="p-2.5 bg-slate-900/85 hover:bg-slate-800 active:scale-95 border border-slate-700/80 rounded-2xl text-slate-300 hover:text-white transition shadow-lg cursor-pointer flex items-center justify-center"
           >
-            <Globe className="w-3.5 h-3.5 text-amber-400" />
-            <span className="text-white font-medium">{currentMap.nameRu}</span>
-            {settings.mapSelectionMode === 'locked' && (
-              <span className="text-[10px] px-1 py-0.2 rounded bg-blue-500/20 text-blue-300 font-bold border border-blue-500/30">
-                🔒
-              </span>
-            )}
-          </button>
-
-          <button
-            onClick={onToggleMode}
-            title="Переключить режим (2 Игрока / Против Бота)"
-            className="bg-slate-900/85 hover:bg-slate-800 backdrop-blur-md border border-slate-700/80 px-3 py-1.5 rounded-xl shadow-lg flex items-center gap-1.5 text-xs sm:text-sm text-slate-200 transition active:scale-95 cursor-pointer"
-          >
-            {mode === 'pvp' ? (
-              <>
-                <Users className="w-4 h-4 text-blue-400" />
-                <span className="font-semibold text-blue-300 hidden sm:inline">2 Игрока</span>
-              </>
+            {muted ? (
+              <VolumeX className="w-5 h-5 text-red-400" />
             ) : (
-              <>
-                <Bot className="w-4 h-4 text-red-400" />
-                <span className="font-semibold text-red-300 hidden sm:inline">vs Бот</span>
-              </>
+              <Volume2 className="w-5 h-5 text-green-400" />
             )}
-          </button>
-
-          {/* Quick Gravity Status Badge */}
-          <button
-            onClick={onOpenSettings}
-            title="Настройки гравитации и физики"
-            className="bg-slate-900/85 hover:bg-slate-800 backdrop-blur-md border border-slate-700/80 px-2.5 py-1.5 rounded-xl shadow-lg flex items-center gap-1 text-xs text-amber-300 transition active:scale-95 cursor-pointer font-mono font-bold"
-          >
-            <span>{settings.gravity.toFixed(2)}G</span>
           </button>
         </div>
 
-        {/* Center: Match Round & Score */}
-        <div className="bg-slate-950/90 backdrop-blur-md border border-amber-500/30 px-4 py-1.5 rounded-2xl shadow-xl flex items-center gap-3">
+        {/* Center: Match Round & Time / Score Indicator */}
+        <div className="bg-slate-950/90 backdrop-blur-md border border-amber-500/40 px-5 py-2 rounded-2xl shadow-xl flex items-center gap-4">
           <div className="text-blue-400 font-black text-xl sm:text-2xl tabular-nums">
             {player1.score}
           </div>
@@ -106,35 +65,14 @@ export const GameHUD: React.FC<GameHUDProps> = ({
           </div>
         </div>
 
-        {/* Right: Sound, Settings, Controls, Pause */}
-        <div className="flex items-center gap-1.5 sm:gap-2">
-          <button
-            onClick={onOpenSettings}
-            title="Все параметры игры (Гравитация, Бомбы, Здоровье, Карта)"
-            className="p-2 bg-slate-900/85 hover:bg-slate-800 active:scale-95 border border-slate-700/80 hover:border-amber-500/50 rounded-xl text-amber-400 hover:text-amber-300 transition shadow-lg cursor-pointer"
-          >
-            <Sliders className="w-4 h-4" />
-          </button>
-          <button
-            onClick={handleMuteClick}
-            title={muted ? 'Включить звук' : 'Выключить звук'}
-            className="p-2 bg-slate-900/85 hover:bg-slate-800 active:scale-95 border border-slate-700/80 rounded-xl text-slate-300 hover:text-white transition shadow-lg cursor-pointer"
-          >
-            {muted ? <VolumeX className="w-4 h-4 text-red-400" /> : <Volume2 className="w-4 h-4 text-green-400" />}
-          </button>
-          <button
-            onClick={onOpenControls}
-            title="Клавиши управления"
-            className="p-2 bg-slate-900/85 hover:bg-slate-800 active:scale-95 border border-slate-700/80 rounded-xl text-slate-300 hover:text-white transition shadow-lg cursor-pointer"
-          >
-            <HelpCircle className="w-4 h-4 text-slate-300" />
-          </button>
+        {/* Right: Pause Button */}
+        <div className="flex items-center">
           <button
             onClick={onTogglePause}
-            title="Пауза"
-            className="p-2 bg-slate-900/85 hover:bg-slate-800 active:scale-95 border border-slate-700/80 rounded-xl text-slate-300 hover:text-white transition shadow-lg cursor-pointer"
+            title="Пауза и меню"
+            className="p-2.5 bg-slate-900/85 hover:bg-slate-800 active:scale-95 border border-slate-700/80 rounded-2xl text-slate-200 hover:text-white transition shadow-lg cursor-pointer flex items-center justify-center"
           >
-            <Pause className="w-4 h-4 text-slate-200" />
+            <Pause className="w-5 h-5 text-amber-400" />
           </button>
         </div>
       </div>

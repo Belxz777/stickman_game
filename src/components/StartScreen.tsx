@@ -22,6 +22,7 @@ interface StartScreenProps {
   onOpenControls: () => void;
   onOpenSettings: () => void;
   onOpenEditor: () => void;
+  onOpenWeapons?: () => void;
   settings: GameSettings;
   currentMap: GameMap;
   p1AttackKey: string;
@@ -33,6 +34,7 @@ export const StartScreen: React.FC<StartScreenProps> = ({
   onOpenControls,
   onOpenSettings,
   onOpenEditor,
+  onOpenWeapons,
   settings,
   currentMap,
   p1AttackKey,
@@ -112,20 +114,30 @@ export const StartScreen: React.FC<StartScreenProps> = ({
           </button>
         </div>
 
-        {/* Action Buttons: Map Editor & Full Settings */}
-        <div className="grid grid-cols-2 gap-2.5 w-full mb-4">
+        {/* Action Buttons: Map Editor, Weapon Configurator & Full Settings */}
+        <div className="grid grid-cols-3 gap-2 w-full mb-4">
           <button
             onClick={onOpenEditor}
-            className="py-2.5 px-3 bg-slate-900 border border-slate-800 hover:border-amber-500/50 active:scale-95 text-slate-200 hover:text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-2 cursor-pointer shadow-sm"
+            className="py-2.5 px-2 bg-slate-900 border border-slate-800 hover:border-amber-500/50 active:scale-95 text-slate-200 hover:text-white font-bold text-xs rounded-xl transition flex flex-col sm:flex-row items-center justify-center gap-1.5 cursor-pointer shadow-sm text-center"
           >
-            <Layers className="w-4 h-4 text-amber-400" /> 🛠️ Редактор Карт
+            <Layers className="w-4 h-4 text-amber-400 shrink-0" />
+            <span>Редактор Карт</span>
+          </button>
+
+          <button
+            onClick={onOpenWeapons}
+            className="py-2.5 px-2 bg-slate-900 border border-slate-800 hover:border-blue-500/50 active:scale-95 text-slate-200 hover:text-white font-bold text-xs rounded-xl transition flex flex-col sm:flex-row items-center justify-center gap-1.5 cursor-pointer shadow-sm text-center"
+          >
+            <Swords className="w-4 h-4 text-blue-400 shrink-0" />
+            <span>Конфиги Оружия</span>
           </button>
 
           <button
             onClick={onOpenSettings}
-            className="py-2.5 px-3 bg-slate-900 border border-slate-800 hover:border-amber-500/50 active:scale-95 text-slate-200 hover:text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-2 cursor-pointer shadow-sm"
+            className="py-2.5 px-2 bg-slate-900 border border-slate-800 hover:border-amber-500/50 active:scale-95 text-slate-200 hover:text-white font-bold text-xs rounded-xl transition flex flex-col sm:flex-row items-center justify-center gap-1.5 cursor-pointer shadow-sm text-center"
           >
-            <Sliders className="w-4 h-4 text-amber-400" /> ⚙️ Все Параметры Игры
+            <Sliders className="w-4 h-4 text-amber-400 shrink-0" />
+            <span>Параметры</span>
           </button>
         </div>
 

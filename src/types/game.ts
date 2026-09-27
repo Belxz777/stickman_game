@@ -16,7 +16,8 @@ export type WeaponId =
   | 'grenade_launcher'
   | 'heavy_crossbow'
   | 'thunder_hammer'
-  | 'kunai_burst';
+  | 'kunai_burst'
+  | string;
 
 export type WeaponType = 'melee' | 'ranged' | 'flail' | 'fists';
 
@@ -116,10 +117,11 @@ export interface GameMap {
   spawns: [ [number, number], [number, number] ]; // p1, p2 [x, y]
   hasVoidBelow: boolean;
   isZeroGravity?: boolean;
+  defaultGravity?: number; // Default gravity preset specifically for this map (e.g. 0.15G for Space, 0.55G for Castle)
   initialBombs?: Array<{ x: number; y: number; timer: number }>;
   initialBarrels?: Array<{ x: number; y: number }>;
-  customWidth?: number;
-  customHeight?: number;
+  customWidth?: number; // Supports extra-large maps up to 3200px
+  customHeight?: number; // Supports extra-large maps up to 2000px
   meteoritesEnabled?: boolean;
   meteoriteSpawnInterval?: number; // in seconds
   isCustom?: boolean;
@@ -178,9 +180,14 @@ export interface Player {
   runCycle: number;
   hitFlashTimer: number;
 
-  // Dynamic weapon aiming (bobbing up and down)
+  // Dynamic weapon aiming (bobbing up and down + 8-direction controlled aim)
   aimAngle: number;
   aimCycle: number;
+  aimDirX?: number;
+  aimDirY?: number;
+  wobblePhase?: number;
+  spineAngle?: number;
+  maxCooldown?: number;
 
   // Jump charge & rocket launch
   jumpHoldTimer: number; // in seconds
@@ -230,6 +237,7 @@ export type GamePhase =
   | 'round_won'
   | 'match_won'
   | 'editor'
+  | 'weapon_editor'
   | 'settings';
 
 export type GameMode = 'pvp' | 'ai';
@@ -241,6 +249,7 @@ export interface GameSettings {
   // Gravity
   gravity: number;
   gravityPreset: GravityPreset;
+  useMapDefaultGravity: boolean; // When true, automatically applies each map's defaultGravity
 
   // Bombs
   bombDamage: number;
@@ -275,6 +284,7 @@ export interface GameSettings {
 export const DEFAULT_GAME_SETTINGS: GameSettings = {
   gravity: 0.55,
   gravityPreset: 'standard',
+  useMapDefaultGravity: true,
   bombDamage: 65,
   bombBlastRadius: 130,
   bombTimer: 14,

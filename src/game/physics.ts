@@ -102,8 +102,13 @@ export function createDefaultPlayer(
     },
     runCycle: 0,
     hitFlashTimer: 0,
-    aimAngle: 0,
+    aimAngle: isP1 ? 0 : Math.PI,
     aimCycle: isP1 ? 0 : Math.PI,
+    aimDirX: isP1 ? 1 : -1,
+    aimDirY: 0,
+    wobblePhase: 0,
+    spineAngle: 0,
+    maxCooldown: weapon.cooldown,
     jumpHoldTimer: 0,
     jumpSuperCharged: false,
   };
@@ -136,8 +141,13 @@ export function resetPlayerForRound(
   player.ragdollActive = false;
   player.runCycle = 0;
   player.hitFlashTimer = 0;
-  player.aimAngle = 0;
+  player.aimAngle = isP1 ? 0 : Math.PI;
   player.aimCycle = isP1 ? 0 : Math.PI;
+  player.aimDirX = isP1 ? 1 : -1;
+  player.aimDirY = 0;
+  player.wobblePhase = 0;
+  player.spineAngle = 0;
+  player.maxCooldown = weapon.cooldown;
   player.jumpHoldTimer = 0;
   player.jumpSuperCharged = false;
 
@@ -192,26 +202,48 @@ export function updatePlayer(
     player.hitFlashTimer = Math.max(0, player.hitFlashTimer - dt * 1000);
   }
 
-  // 1. Movement Inputs with configurable move speed multiplier
-  const speed = MOVE_SPEED * (player.weapon.speedMultiplier || 1) * moveSpeedMult;
-  if (input.left) {
-    player.vx -= speed * 0.45;
-    player.facing = -1;
-    player.runCycle += 0.22 * moveSpeedMult;
-  }
-  if (input.right) {
-    player.vx += speed * 0.45;
-    player.facing = 1;
-    player.runCycle += 0.22 * moveSpeedMult;
+  // 1. Precise 8-Direction Tracking & Controlled Aiming (W A S D / Arrows)
+  let rawDirX = 0;
+  let rawDirY = 0;
+  if (input.left) rawDirX -= 1;
+  if (input.right) rawDirX += 1;
+  if (input.up) rawDirY -= 1;
+  if (input.down) rawDirY += 1;
+
+  const isDirectionActive = rawDirX !== 0 || rawDirY !== 0;
+  if (isDirectionActive) {
+    const len = Math.hypot(rawDirX, rawDirY) || 1;
+    player.aimDirX = rawDirX / len;
+    player.aimDirY = rawDirY / len;
+    player.aimAngle = Math.atan2(player.aimDirY, player.aimDirX);
+    if (rawDirX !== 0) {
+      player.facing = rawDirX > 0 ? 1 : -1;
+    }
+  } else {
+    // Default aim when idle is along current facing direction
+    if (player.aimDirX === undefined) {
+      player.aimDirX = player.facing;
+      player.aimDirY = 0;
+      player.aimAngle = player.facing === 1 ? 0 : Math.PI;
+    }
   }
 
-  // Cap horizontal speed
-  if (Math.abs(player.vx) > speed) {
-    player.vx = Math.sign(player.vx) * speed;
+  // 2. Playful Chaotic Movement Physics (Non-instant, springy inertia & plastic body sway)
+  const maxSpeed = MOVE_SPEED * (player.weapon.speedMultiplier || 1) * moveSpeedMult;
+  let targetVx = 0;
+  if (input.left) targetVx -= maxSpeed;
+  if (input.right) targetVx += maxSpeed;
+
+  // Elastic acceleration that creates organic momentum and floppy inertia
+  const accelRate = player.isGrounded ? 0.28 : 0.16;
+  player.vx += (targetVx - player.vx) * accelRate;
+  if (Math.abs(player.vx) > 0.2) {
+    player.runCycle += 0.24 * moveSpeedMult;
   }
+  player.wobblePhase = (player.wobblePhase || 0) + dt * 9.5;
 
   // Jump
-  if (input.up && player.jumpsLeft > 0) {
+  if (input.up && player.jumpsLeft > 0 && (!player.isGrounded ? Math.abs(player.vy) < 2 : true)) {
     player.vy = JUMP_FORCE * jumpForceMult;
     player.jumpsLeft--;
     player.isGrounded = false;
@@ -248,12 +280,13 @@ export function updatePlayer(
   player.x += player.vx;
   player.y += player.vy;
 
-  // Screen horizontal boundaries
+  // Screen horizontal boundaries (supports extra-large maps up to 3600px)
+  const mapW = map.customWidth || 1000;
   if (player.x < 20) {
     player.x = 20;
     player.vx = 0;
-  } else if (player.x > 980) {
-    player.x = 980;
+  } else if (player.x > mapW - 20) {
+    player.x = mapW - 20;
     player.vx = 0;
   }
 
@@ -385,11 +418,6 @@ export function updatePlayer(
     player.attackCooldown = Math.max(0, player.attackCooldown - dt * 1000);
   }
 
-  // Smooth vertical aim oscillation (the barrel / weapon aims up and down smoothly)
-  player.aimCycle += dt * 3.8; // Oscillation speed
-  // Max vertical angle ~ +- 28 degrees (0.48 rad)
-  player.aimAngle = Math.sin(player.aimCycle) * 0.48;
-
   if (player.attackTimer > 0) {
     player.attackTimer = Math.max(0, player.attackTimer - dt * 1000);
     if (player.attackTimer === 0) {
@@ -404,8 +432,8 @@ export function updatePlayer(
     player.flailAngle += player.flailAngularVelocity + 0.08 * player.facing;
 
     // Check flail head collision with opponent
-    const handX = player.x + player.facing * 14;
-    const handY = player.y - 4;
+    const handX = player.joints.rightHand.x;
+    const handY = player.joints.rightHand.y;
     const flailHeadX = handX + Math.cos(player.flailAngle) * player.weapon.range;
     const flailHeadY = handY + Math.sin(player.flailAngle) * player.weapon.range;
 
@@ -421,37 +449,33 @@ export function updatePlayer(
     }
   }
 
-  // 5. Automatic Attack System (Requirement: Melee on contact, Ranged auto-fire on move with configurable speed/delay)
+  // 5. Controlled Attack System on W/A/S/D or Arrow keys (Shoots in chosen direction immediately + reload cooldown)
   if (player.attackCooldown <= 0 && !player.attacking) {
-    if (player.weapon.type === 'melee' || player.weapon.type === 'fists') {
-      // Melee: auto-trigger on contact
+    if (isDirectionActive || input.attack) {
+      executeAttack(
+        player,
+        opponent,
+        projectiles,
+        particles,
+        shakeRef,
+        damageMult,
+        cooldownMult * autoFireCooldownMult
+      );
+    } else if (player.weapon.type === 'melee' || player.weapon.type === 'fists') {
+      // Melee auto-contact if close
       const dx = opponent.x - player.x;
       const dy = opponent.y - player.y;
-      const dist = Math.hypot(dx, dy);
-      if (Math.sign(dx) === player.facing && dist <= player.weapon.range + 18) {
-         executeAttack(player, opponent, projectiles, particles, shakeRef, damageMult, cooldownMult);
-      }
-    } else if (player.weapon.type === 'ranged') {
-      // Ranged: auto-fire with configurable cooldown multiplier when moving
-      if (input.left || input.right || input.up) {
-        executeAttack(
-          player,
-          opponent,
-          projectiles,
-          particles,
-          shakeRef,
-          damageMult,
-          cooldownMult * autoFireCooldownMult
-        );
+      if (Math.hypot(dx, dy) <= player.weapon.range + 10) {
+        executeAttack(player, opponent, projectiles, particles, shakeRef, damageMult, cooldownMult);
       }
     }
   }
 
-  // Update animated joints with procedural physics-driven kinematics
+  // Update animated joints with super-plastic procedural ragdoll physics
   updateJointsFromPlayer(player);
 }
 
-// Procedural Animation System: Dynamically calculates joint angles and trajectories based on velocity & physics state
+// Super-Plastic Floppy Ragdoll Kinematics: Real-time bouncy springs and rubbery skeletal deformation
 function updateJointsFromPlayer(player: Player): void {
   const x = player.x;
   const y = player.y;
@@ -459,114 +483,92 @@ function updateJointsFromPlayer(player: Player): void {
   const vy = player.vy;
   const facing = player.facing;
   const isGrounded = player.isGrounded;
-  const time = Date.now() / 110;
+  const time = Date.now() / 90;
+  const wobble = player.wobblePhase || 0;
 
   const hSpeed = Math.abs(vx);
-  const speedRatio = Math.min(2.0, hSpeed / 4.8);
-  const isMoving = hSpeed > 0.3;
+  const speedRatio = Math.min(2.2, hSpeed / 4.5);
+  const isMoving = hSpeed > 0.25;
   const isJumping = !isGrounded && vy < -0.8;
   const isFalling = !isGrounded && vy >= -0.8;
 
-  // 1. Procedural Torso Lean and Aerodynamic Tilt
-  // Running leans into motion; in air, body pitches along velocity vector
-  const moveLean = isGrounded ? (vx / 6.0) * 8 : (vx / 8.0) * 12;
-  const flightPitch = !isGrounded ? Math.max(-0.4, Math.min(0.4, (vy / 14.0) * 0.35 * facing)) : 0;
+  // 1. Super-Plastic Floppy Spine & Torso Physics
+  const aimX = player.aimDirX !== undefined ? player.aimDirX : facing;
+  const aimY = player.aimDirY !== undefined ? player.aimDirY : 0;
 
-  player.joints.head.x = x + moveLean * 0.9 + Math.sin(flightPitch) * 4;
-  player.joints.head.y = y - 26 + (isMoving && isGrounded ? Math.sin(player.runCycle * 2) * 1.5 : Math.sin(time) * 1.2);
+  // Spine flexes backwards on acceleration, springs forwards on stop, and leans towards aim direction
+  const inertiaLean = -(vx * 2.8);
+  const aimTorsoLean = aimX * 7.5;
+  const wobbleSway = Math.sin(wobble) * (isMoving ? 3.5 : 1.5);
+  const spineCurvature = inertiaLean + aimTorsoLean + wobbleSway;
+  player.spineAngle = spineCurvature * 0.04;
 
-  player.joints.chest.x = x + moveLean * 0.5;
-  player.joints.chest.y = y - 10 + (isMoving && isGrounded ? Math.cos(player.runCycle * 2) * 1.2 : 0);
+  // Pelvis (Hips)
+  const hipSwayY = isGrounded && isMoving ? Math.abs(Math.sin(player.runCycle)) * 2.5 : 0;
+  player.joints.pelvis.x = x + Math.sin(player.runCycle) * 1.5;
+  player.joints.pelvis.y = y + 8 + hipSwayY;
 
-  player.joints.pelvis.x = x;
-  player.joints.pelvis.y = y + 6 + (isGrounded && isMoving ? Math.abs(Math.sin(player.runCycle)) * 1.8 : 0);
+  // Chest (Mid-upper spine with bouncy spring flex)
+  player.joints.chest.x = x + spineCurvature * 0.6;
+  player.joints.chest.y = y - 10 + (isMoving && isGrounded ? Math.cos(player.runCycle * 2) * 2.0 : Math.sin(time) * 1.2);
 
-  // 2. Procedural Leg & Foot Kinematics
+  // Head (Rubbery neck wobble with dynamic aim orientation)
+  const neckStretch = Math.sin(wobble * 1.2) * 2.0;
+  player.joints.head.x = x + spineCurvature * 1.1 + aimX * 4;
+  player.joints.head.y = y - 27 + neckStretch + aimY * 3 + (isMoving && isGrounded ? Math.sin(player.runCycle * 2) * 2.0 : Math.sin(time) * 1.5);
+
+  // 2. Plastic Floppy Legs & Feet Kinematics
   if (isJumping) {
-    // JUMPING / RISING IN AIR:
-    // Knees tuck up towards body; feet angle backwards dynamically with upward speed
-    const tuckAmount = Math.min(12, Math.abs(vy) * 0.8);
-    const airInertiaX = -(vx * 2.2);
-
-    player.joints.leftFoot.x = x - facing * 8 + airInertiaX + Math.sin(time * 2.5) * 2;
-    player.joints.leftFoot.y = y + 20 - tuckAmount;
-
-    player.joints.rightFoot.x = x + facing * 6 + airInertiaX - Math.sin(time * 2.5) * 2;
-    player.joints.rightFoot.y = y + 24 - tuckAmount * 0.7;
+    // Jump: High knee tuck with loose dangling floppy boots
+    const tuck = Math.min(14, Math.abs(vy) * 0.9);
+    const airFlail = Math.sin(wobble * 2.5) * 4.0;
+    player.joints.leftFoot.x = x - facing * 10 - vx * 2.0 + airFlail;
+    player.joints.leftFoot.y = y + 22 - tuck;
+    player.joints.rightFoot.x = x + facing * 8 - vx * 2.0 - airFlail;
+    player.joints.rightFoot.y = y + 26 - tuck * 0.7;
   } else if (isFalling) {
-    // FALLING / FLIGHT:
-    // Legs trail dynamically into the wind stream based on horizontal velocity vx and fall velocity vy
-    const aeroDragX = -(vx * 3.4);
-    const fallStream = Math.min(8, vy * 0.5);
-    const flutter = Math.sin(time * 3.0) * (3.5 + Math.min(6, vy * 0.4));
-
-    player.joints.leftFoot.x = x - facing * 10 + aeroDragX + flutter;
-    player.joints.leftFoot.y = y + 32 - fallStream + Math.cos(time * 3.0) * 2.5;
-
-    player.joints.rightFoot.x = x + facing * 8 + aeroDragX - flutter;
-    player.joints.rightFoot.y = y + 32 - fallStream - Math.cos(time * 3.0) * 2.5;
+    // Fall: Trailing aerodynamic drag with wild floppy fluttering
+    const aeroDragX = -(vx * 3.8);
+    const flutter = Math.sin(wobble * 3.0) * (4.5 + Math.min(8, vy * 0.45));
+    player.joints.leftFoot.x = x - facing * 12 + aeroDragX + flutter;
+    player.joints.leftFoot.y = y + 33 - Math.min(8, vy * 0.4);
+    player.joints.rightFoot.x = x + facing * 10 + aeroDragX - flutter;
+    player.joints.rightFoot.y = y + 33 - Math.min(8, vy * 0.4);
   } else if (isMoving) {
-    // GROUND RUNNING / WALKING:
-    // Procedural cycloid foot stride curves with dynamic step length and foot lift
-    const strideLength = 16 * Math.max(0.6, speedRatio);
-    const strideHeight = 10 * Math.max(0.4, speedRatio);
+    // Ground stride: high-stepping bouncy floppy legs
+    const strideLength = 18 * Math.max(0.6, speedRatio);
+    const strideHeight = 12 * Math.max(0.4, speedRatio);
+    const leg1 = player.runCycle;
+    const leg2 = player.runCycle + Math.PI;
 
-    const leg1Cycle = player.runCycle;
-    const leg2Cycle = player.runCycle + Math.PI;
-
-    // Foot 1 (Left)
-    player.joints.leftFoot.x = x - Math.sin(leg1Cycle) * strideLength * facing;
-    player.joints.leftFoot.y = y + 29 - Math.max(0, Math.cos(leg1Cycle)) * strideHeight;
-
-    // Foot 2 (Right)
-    player.joints.rightFoot.x = x - Math.sin(leg2Cycle) * strideLength * facing;
-    player.joints.rightFoot.y = y + 29 - Math.max(0, Math.cos(leg2Cycle)) * strideHeight;
+    player.joints.leftFoot.x = x - Math.sin(leg1) * strideLength * facing;
+    player.joints.leftFoot.y = y + 29 - Math.max(0, Math.cos(leg1)) * strideHeight;
+    player.joints.rightFoot.x = x - Math.sin(leg2) * strideLength * facing;
+    player.joints.rightFoot.y = y + 29 - Math.max(0, Math.cos(leg2)) * strideHeight;
   } else {
-    // GROUND IDLE / STANDING:
-    // Subtle breathing posture with stable planted boots
-    const breath = Math.sin(time) * 1.0;
-    player.joints.leftFoot.x = x - 8;
-    player.joints.leftFoot.y = y + 30;
-    player.joints.rightFoot.x = x + 8;
-    player.joints.rightFoot.y = y + 30;
+    // Idle stance with rubbery breathing
+    const idleBreath = Math.sin(time) * 1.2;
+    player.joints.leftFoot.x = x - 9;
+    player.joints.leftFoot.y = y + 30 + idleBreath;
+    player.joints.rightFoot.x = x + 9;
+    player.joints.rightFoot.y = y + 30 - idleBreath;
   }
 
-  // 3. Procedural Arm & Hand Kinematics
-  if (isJumping) {
-    // Jump: Back arm reaches high for momentum, front arm balances
-    player.joints.leftHand.x = x - facing * (16 + Math.abs(vx) * 1.5);
-    player.joints.leftHand.y = y - 18 - Math.min(6, Math.abs(vy) * 0.5);
+  // 3. Super Plastic Floppy Arms (Weapon hand accurately tracks 8-dir aim, off-hand flails dynamically)
+  const armReach = player.attacking ? 24 : 20;
+  const shoulderX = player.joints.chest.x;
+  const shoulderY = player.joints.chest.y + 2;
 
-    player.joints.rightHand.x = x + facing * 20;
-    player.joints.rightHand.y = y - 10 + (player.aimAngle || 0) * 10;
-  } else if (isFalling) {
-    // Flight / Falling: Arms flare outward as aerodynamic stabilizers
-    const aeroWingX = -(vx * 2.5);
-    const wingFlap = Math.sin(time * 3.0) * 3;
+  // Front Arm (Holds weapon, points directly along aim vector)
+  const weaponSpringRecoil = player.attacking ? -aimX * 4 : 0;
+  player.joints.rightHand.x = shoulderX + aimX * armReach + weaponSpringRecoil;
+  player.joints.rightHand.y = shoulderY + aimY * armReach + (player.attacking ? -aimY * 4 : 0);
 
-    player.joints.leftHand.x = x - facing * 22 + aeroWingX;
-    player.joints.leftHand.y = y - 6 + wingFlap;
-
-    player.joints.rightHand.x = x + facing * 22;
-    player.joints.rightHand.y = y - 6 - wingFlap + (player.aimAngle || 0) * 12;
-  } else if (isMoving) {
-    // Running: Back arm swings in natural opposition to front foot
-    const armSwing = Math.cos(player.runCycle) * 15 * speedRatio;
-
-    player.joints.leftHand.x = x - facing * (12 + armSwing) - (vx * 0.6);
-    player.joints.leftHand.y = y - 6 + Math.abs(Math.sin(player.runCycle)) * 4;
-
-    player.joints.rightHand.x = x + facing * (18 - armSwing * 0.6);
-    player.joints.rightHand.y = y - 6 + (player.aimAngle || 0) * 12;
-  } else {
-    // Idle: Gentle resting pose with natural breathing sway
-    const breathHand = Math.sin(time) * 1.5;
-    player.joints.leftHand.x = x - facing * 12;
-    player.joints.leftHand.y = y - 6 + breathHand;
-
-    player.joints.rightHand.x = x + facing * 16;
-    player.joints.rightHand.y = y - 6 - breathHand + (player.aimAngle || 0) * 12;
-  }
+  // Back Arm (Floppy ragdoll balancer swinging opposite to motion)
+  const balanceSwingX = -aimX * 16 - (vx * 2.0) + Math.cos(wobble * 1.5) * 5.0;
+  const balanceSwingY = Math.sin(wobble * 1.5) * 6.0 - Math.min(8, Math.abs(vy) * 0.4);
+  player.joints.leftHand.x = shoulderX + balanceSwingX;
+  player.joints.leftHand.y = shoulderY + balanceSwingY;
 }
 
 export function executeAttack(
@@ -587,10 +589,10 @@ export function executeAttack(
   const handX = player.x + facing * 18;
   const handY = player.y - 6;
 
-  // Dynamic weapon aim angle (weapon bobs up and down smoothly for ALL weapons)
-  const aimAngle = player.aimAngle || 0;
-  const baseDirX = facing * Math.cos(aimAngle);
-  const baseDirY = Math.sin(aimAngle);
+  // Dynamic weapon aim angle (360-degree controlled aim)
+  const aimAngle = player.aimAngle !== undefined ? player.aimAngle : (player.facing === 1 ? 0 : Math.PI);
+  const baseDirX = player.aimDirX !== undefined ? player.aimDirX : Math.cos(aimAngle);
+  const baseDirY = player.aimDirY !== undefined ? player.aimDirY : Math.sin(aimAngle);
 
   // Melee attack hitcheck
   if (w.type === 'melee' || w.type === 'fists') {
@@ -689,7 +691,7 @@ export function executeAttack(
           weaponId: w.id,
           x: handX,
           y: handY,
-          vx: facing * Math.cos(pelletAngle) * speed,
+          vx: Math.cos(pelletAngle) * speed,
           vy: Math.sin(pelletAngle) * speed,
           radius: 4,
           damage: w.damage,
@@ -827,7 +829,7 @@ export function executeAttack(
           weaponId: w.id,
           x: handX,
           y: handY,
-          vx: facing * Math.cos(angle) * speed,
+          vx: Math.cos(angle) * speed,
           vy: Math.sin(angle) * speed,
           radius: 5,
           damage: w.damage,
@@ -1174,7 +1176,9 @@ export function updateProjectiles(
     if (projectileDestroyed) continue;
 
     // Timeout or out of screen
-    if (p.lifetime <= 0 || p.x < -100 || p.x > 1100 || p.y > 700) {
+    const mapW = map.customWidth || 1000;
+    const mapH = map.customHeight || 600;
+    if (p.lifetime <= 0 || p.x < -150 || p.x > mapW + 150 || p.y > mapH + 150) {
       if (p.type === 'rocket') {
         detonateExplosion(p.x, p.y, 80, 40, players, bombs, barrels, shakeRef, particles);
       } else if (p.type === 'grenade') {

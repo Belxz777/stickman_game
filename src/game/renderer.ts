@@ -28,6 +28,23 @@ export function renderGame(
   // Clear
   ctx.clearRect(0, 0, width, height);
 
+  // Dynamic Camera for Large Maps (supports maps up to 3600px width & 2400px height)
+  const mapW = map.customWidth || width;
+  const mapH = map.customHeight || height;
+
+  let camX = 0;
+  let camY = 0;
+
+  if (mapW > width || mapH > height) {
+    const p1 = players[0];
+    const p2 = players[1];
+    const centerX = p1 && p2 ? (p1.x + p2.x) / 2 : p1 ? p1.x : width / 2;
+    const centerY = p1 && p2 ? (p1.y + p2.y) / 2 : p1 ? p1.y : height / 2;
+
+    camX = Math.max(0, Math.min(mapW - width, centerX - width / 2));
+    camY = Math.max(0, Math.min(mapH - height, centerY - height / 2));
+  }
+
   // Apply Camera Shake
   if (cameraShake > 0) {
     const shakeX = (Math.random() - 0.5) * cameraShake * 1.4;
@@ -35,14 +52,17 @@ export function renderGame(
     ctx.translate(shakeX, shakeY);
   }
 
+  // Translate camera for large world maps
+  ctx.translate(-camX, -camY);
+
   // 1. Draw Background
-  drawBackground(ctx, width, height, map);
+  drawBackground(ctx, mapW, mapH, map);
 
   // 2. Draw Platforms & Arenas
   drawPlatforms(ctx, map);
 
   // 3. Draw Hazards (Lava / Void glow)
-  drawHazards(ctx, width, height, map);
+  drawHazards(ctx, mapW, mapH, map);
 
   // 4. Draw Meteorites
   drawMeteorites(ctx, meteorites);
@@ -627,10 +647,15 @@ function drawAgent(
     return;
   }
 
-  // Head
-  const headX = player.x;
-  const headY = player.y - 24;
+  // 1. Super-Plastic Ragdoll Joints
+  const headX = player.joints.head.x;
+  const headY = player.joints.head.y;
+  const chestX = player.joints.chest.x;
+  const chestY = player.joints.chest.y;
+  const pelvisX = player.joints.pelvis.x;
+  const pelvisY = player.joints.pelvis.y;
   const headRadius = 14;
+  const facing = player.facing;
 
   // Head circle with thick black outline (classic Supreme Duelist style!)
   ctx.beginPath();
@@ -642,41 +667,35 @@ function drawAgent(
   ctx.stroke();
 
   // Cool Agent Glasses / Visor
-  const facing = player.facing;
   ctx.fillStyle = '#000000';
   ctx.fillRect(headX + (facing === 1 ? 2 : -12), headY - 4, 10, 5);
   // Visor reflection
   ctx.fillStyle = '#60a5fa';
   ctx.fillRect(headX + (facing === 1 ? 5 : -9), headY - 3, 4, 2);
 
-  // Torso / Spine
-  const spineTopY = headY + headRadius - 2;
-  const spineBottomY = player.y + 12;
-
-  ctx.lineWidth = 5;
+  // Dynamic Super-Plastic Spine (Curved Bezier spine through animated joints)
+  ctx.lineWidth = 5.5;
   ctx.strokeStyle = outlineColor;
   ctx.beginPath();
-  ctx.moveTo(headX, spineTopY);
-  ctx.lineTo(headX, spineBottomY);
+  ctx.moveTo(headX, headY + headRadius - 2);
+  ctx.quadraticCurveTo(chestX, chestY, pelvisX, pelvisY);
   ctx.stroke();
 
   ctx.lineWidth = 3.5;
   ctx.strokeStyle = agentColor;
   ctx.beginPath();
-  ctx.moveTo(headX, spineTopY);
-  ctx.lineTo(headX, spineBottomY);
+  ctx.moveTo(headX, headY + headRadius - 2);
+  ctx.quadraticCurveTo(chestX, chestY, pelvisX, pelvisY);
   ctx.stroke();
 
-  // Legs with running / jumping physics and articulated joints
-  const hipY = spineBottomY;
+  // Articulated Floppy Legs connected to plastic pelvis joint
   const leftFoot = player.joints.leftFoot;
   const rightFoot = player.joints.rightFoot;
+  drawArticulatedLeg(ctx, pelvisX - 4, pelvisY, leftFoot.x, leftFoot.y, facing, agentColor, true);
+  drawArticulatedLeg(ctx, pelvisX + 4, pelvisY, rightFoot.x, rightFoot.y, facing, agentColor, false);
 
-  drawArticulatedLeg(ctx, headX - 4, hipY, leftFoot.x, leftFoot.y, facing, agentColor, true);
-  drawArticulatedLeg(ctx, headX + 4, hipY, rightFoot.x, rightFoot.y, facing, agentColor, false);
-
-  // Arm & Weapon with articulated shoulder-elbow-hand motion
-  drawArticulatedArmsAndWeapon(ctx, player, headX, spineTopY + 6, agentColor);
+  // Super-Plastic Arms & Weapon tracking 8-direction aim
+  drawArticulatedArmsAndWeapon(ctx, player, chestX, chestY, agentColor);
 
   // Signs of damage on the agent (blood cuts, scratches, critical warning pulse)
   if (player.hp < 75) {
@@ -690,8 +709,8 @@ function drawAgent(
     ctx.stroke();
 
     ctx.beginPath();
-    ctx.moveTo(headX - 3, spineTopY + 8);
-    ctx.lineTo(headX + 3, spineTopY + 12);
+    ctx.moveTo(chestX - 3, chestY - 2);
+    ctx.lineTo(chestX + 3, chestY + 3);
     ctx.stroke();
   }
 
@@ -707,7 +726,7 @@ function drawAgent(
     ctx.restore();
   }
 
-  // Health bar & numeric HP above head (Requirement 3: ALWAYS show health and HP above agents in combat!)
+  // Health bar & numeric HP above head
   const barWidth = 46;
   const barHeight = 6;
   const barX = player.x - barWidth / 2;
@@ -739,6 +758,16 @@ function drawAgent(
   const hpText = `${Math.ceil(player.hp)} HP`;
   ctx.strokeText(hpText, player.x, barY - 2);
   ctx.fillText(hpText, player.x, barY - 2);
+
+  // Visual Reload / Cooldown Progress Indicator
+  if (player.attackCooldown > 0 && player.maxCooldown && player.maxCooldown > 0) {
+    const reloadProgress = 1 - (player.attackCooldown / player.maxCooldown);
+    const reloadY = barY + barHeight + 4;
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillRect(barX, reloadY, barWidth, 3);
+    ctx.fillStyle = '#F59E0B';
+    ctx.fillRect(barX, reloadY, barWidth * Math.min(1, Math.max(0, reloadProgress)), 3);
+  }
 
   // Rocket Launch Charge Indicator (in Zero Gravity when holding jump)
   if (player.jumpHoldTimer > 0) {

@@ -1,6 +1,6 @@
 import { Weapon, WeaponId } from '../types/game';
 
-export const WEAPONS: Record<WeaponId, Weapon> = {
+export const DEFAULT_WEAPONS: Record<WeaponId, Weapon> = {
   laser_katana: {
     id: 'laser_katana',
     nameRu: 'Лазерная катана',
@@ -26,7 +26,7 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
     knockback: 18,
     range: 85,
     description: 'Тяжелый сокрушительный удар, отбрасывающий врага через всю арену.',
-    color: '#FACC15', // Gold / Yellow like the screenshot
+    color: '#FACC15', // Gold / Yellow
     glowColor: '#FEF08A',
     speedMultiplier: 1.05,
     iconName: 'Hammer',
@@ -51,7 +51,7 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
     nameRu: 'Обрез-дробовик',
     nameEn: 'Sawed-off Shotgun',
     type: 'ranged',
-    damage: 6, // 4 pellets = up to 24 dmg at point-blank
+    damage: 6, // 4 pellets
     cooldown: 620,
     knockback: 9,
     range: 240,
@@ -99,104 +99,103 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
     cooldown: 190,
     knockback: 7,
     range: 65,
-    description: 'Молниеносный шквал быстрых колющих ударов и повышенная скорость бега.',
-    color: '#10B981', // Emerald
-    glowColor: '#34D399',
+    description: 'Молниеносная серия быстрых колющих ударов парными трезубцами.',
+    color: '#E2E8F0', // Steel
+    glowColor: '#94A3B8',
     speedMultiplier: 1.25,
     iconName: 'Swords',
   },
   fire_wand: {
     id: 'fire_wand',
-    nameRu: 'Огненный жезл',
-    nameEn: 'Fire Wand',
+    nameRu: 'Магический посох огня',
+    nameEn: 'Fire Wizard Wand',
     type: 'ranged',
-    damage: 22,
-    cooldown: 520,
+    damage: 18,
+    cooldown: 480,
     knockback: 8,
-    range: 480,
-    description: 'Выпускает прыгучий огненный шар по дуге прицеливания.',
-    color: '#FB923C', // Amber
-    glowColor: '#FED7AA',
+    range: 520,
+    description: 'Выпускает сгустки пламени, оставляющие огненные искры.',
+    color: '#F59E0B', // Amber
+    glowColor: '#FCD34D',
     iconName: 'Sparkles',
   },
   power_fists: {
     id: 'power_fists',
-    nameRu: 'Силовые кулаки',
+    nameRu: 'Силовые кастеты',
     nameEn: 'Power Fists',
     type: 'fists',
-    damage: 45,
-    cooldown: 260,
-    knockback: 15,
-    range: 68,
-    description: 'Серия сокрушительных боксерских ударов и подбрасывающий апперкот.',
-    color: '#EC4899', // Pink
-    glowColor: '#F472B6',
-    speedMultiplier: 1.15,
-    iconName: 'Shield',
+    damage: 42,
+    cooldown: 240,
+    knockback: 16,
+    range: 60,
+    description: 'Сокрушительный апперкот, подбрасывающий врага высоко в воздух.',
+    color: '#3B82F6', // Blue
+    glowColor: '#93C5FD',
+    speedMultiplier: 1.2,
+    iconName: 'ShieldAlert',
   },
   flail: {
     id: 'flail',
-    nameRu: 'Шипастый кистень',
-    nameEn: 'Spiked Flail',
+    nameRu: 'Тяжелый шипастый кистень',
+    nameEn: 'Spiked Battle Flail',
     type: 'flail',
-    damage: 54,
-    cooldown: 320,
-    knockback: 16,
-    range: 82,
-    description: 'Тяжелый шипованный шар на цепи, раскручиваемый вокруг агента физикой.',
-    color: '#EAB308', // Yellow/Gold
-    glowColor: '#FEF08A',
-    speedMultiplier: 1.05,
-    iconName: 'Disc',
+    damage: 45,
+    cooldown: 350,
+    knockback: 14,
+    range: 95,
+    description: 'Вращающийся на цепи шар с шипами. Скорость вращения зависит от движения!',
+    color: '#CBD5E1', // Silver
+    glowColor: '#F1F5F9',
+    iconName: 'RotateCcw',
   },
   energy_spear: {
     id: 'energy_spear',
     nameRu: 'Энергетическое копьё',
     nameEn: 'Energy Spear',
     type: 'melee',
-    damage: 52,
-    cooldown: 360,
-    knockback: 15,
-    range: 96,
-    description: 'Сверхдальний колющий выпад с пронзанием и вращением наконечника.',
-    color: '#065F46', // Deep emerald
-    glowColor: '#10B981',
-    speedMultiplier: 1.1,
-    iconName: 'Zap',
+    damage: 50,
+    cooldown: 340,
+    knockback: 13,
+    range: 105,
+    description: 'Длинный колющий выпад с огромной дистанцией поражения.',
+    color: '#10B981', // Emerald
+    glowColor: '#34D399',
+    speedMultiplier: 1.08,
+    iconName: 'Target',
   },
   plasma_scythe: {
     id: 'plasma_scythe',
     nameRu: 'Плазменная коса Жнеца',
-    nameEn: 'Plasma Reaper Scythe',
+    nameEn: 'Plasma Scythe',
     type: 'melee',
-    damage: 60,
-    cooldown: 480,
-    knockback: 17,
+    damage: 58,
+    cooldown: 460,
+    knockback: 15,
     range: 90,
-    description: 'Огромный дуговой рассекающий взмах, затягивающий врага в лезвие.',
-    color: '#7C3AED', // Violet
-    glowColor: '#A78BFA',
-    speedMultiplier: 1.05,
-    iconName: 'Sparkles',
+    description: 'Широкая смертоносная дуга плазменного лезвия с вихревым следом.',
+    color: '#EC4899', // Pink / Magenta
+    glowColor: '#F472B6',
+    speedMultiplier: 1.06,
+    iconName: 'Moon',
   },
   boomerang_blade: {
     id: 'boomerang_blade',
-    nameRu: 'Бумеранг-сюрикен',
+    nameRu: 'Летающий бумеранг-клинок',
     nameEn: 'Boomerang Blade',
     type: 'ranged',
-    damage: 26,
-    cooldown: 560,
-    knockback: 10,
-    range: 520,
-    description: 'Летающий вращающийся клинок, прорезающий цель и возвращающийся назад.',
-    color: '#38BDF8', // Sky blue
-    glowColor: '#7DD3FC',
+    damage: 22,
+    cooldown: 520,
+    knockback: 9,
+    range: 450,
+    description: 'Вращающийся диск, который пронзает врагов насквозь и летит по траектории.',
+    color: '#06B6D4', // Cyan
+    glowColor: '#67E8F9',
     iconName: 'Disc',
   },
   chainsaw: {
     id: 'chainsaw',
-    nameRu: 'Моторная бензопила',
-    nameEn: 'Motorized Chainsaw',
+    nameRu: 'Бензопила "Резня"',
+    nameEn: 'Ripper Chainsaw',
     type: 'melee',
     damage: 58,
     cooldown: 220,
@@ -270,10 +269,56 @@ export const WEAPONS: Record<WeaponId, Weapon> = {
   },
 };
 
-export const WEAPON_LIST = Object.values(WEAPONS);
+export const WEAPON_LIST = Object.values(DEFAULT_WEAPONS);
+
+export function getSavedCustomWeapons(): Weapon[] {
+  try {
+    const raw = localStorage.getItem('agent_battle_custom_weapons');
+    if (!raw) return [];
+    return JSON.parse(raw);
+  } catch {
+    return [];
+  }
+}
+
+export function saveCustomWeapons(weapons: Weapon[]): void {
+  try {
+    localStorage.setItem('agent_battle_custom_weapons', JSON.stringify(weapons));
+  } catch {}
+}
+
+export function getAllWeapons(): Weapon[] {
+  const custom = getSavedCustomWeapons();
+  if (custom && custom.length > 0) {
+    return custom;
+  }
+  return WEAPON_LIST;
+}
+
+export function exportWeaponsJson(): string {
+  return JSON.stringify(getAllWeapons(), null, 2);
+}
+
+export function importWeaponsJson(jsonStr: string): Weapon[] {
+  const parsed = JSON.parse(jsonStr);
+  if (Array.isArray(parsed) && parsed.length > 0) {
+    saveCustomWeapons(parsed);
+    return parsed;
+  }
+  throw new Error('Некорректный JSON массив оружия');
+}
+
+export function resetWeaponsToDefault(): Weapon[] {
+  try {
+    localStorage.removeItem('agent_battle_custom_weapons');
+  } catch {}
+  return WEAPON_LIST;
+}
 
 export function getRandomWeapon(excludeId?: WeaponId): Weapon {
-  const available = excludeId ? WEAPON_LIST.filter((w) => w.id !== excludeId) : WEAPON_LIST;
+  const availableList = getAllWeapons();
+  const available = excludeId ? availableList.filter((w) => w.id !== excludeId) : availableList;
+  if (available.length === 0) return availableList[0] || WEAPON_LIST[0];
   const randomIndex = Math.floor(Math.random() * available.length);
   return available[randomIndex];
 }

@@ -578,6 +578,54 @@ export function getAllMaps(): GameMap[] {
   return [...MAP_LIST, ...custom];
 }
 
+export function deleteCustomMap(mapId: string): void {
+  try {
+    const existing = getSavedCustomMaps();
+    const filtered = existing.filter((m) => m.id !== mapId);
+    localStorage.setItem('agent_battle_custom_maps', JSON.stringify(filtered));
+  } catch {}
+}
+
+export function exportMapsJson(): string {
+  return JSON.stringify(getAllMaps(), null, 2);
+}
+
+export function exportSingleMapJson(map: GameMap): string {
+  return JSON.stringify(map, null, 2);
+}
+
+export function importMapsJson(jsonStr: string): GameMap[] {
+  const parsed = JSON.parse(jsonStr);
+  if (Array.isArray(parsed)) {
+    const existing = getSavedCustomMaps();
+    for (const item of parsed) {
+      if (item && item.id && item.platforms) {
+        item.isCustom = true;
+        const idx = existing.findIndex((e) => e.id === item.id);
+        if (idx >= 0) {
+          existing[idx] = item;
+        } else {
+          existing.push(item);
+        }
+      }
+    }
+    localStorage.setItem('agent_battle_custom_maps', JSON.stringify(existing));
+    return getAllMaps();
+  } else if (parsed && parsed.id && parsed.platforms) {
+    parsed.isCustom = true;
+    saveCustomMap(parsed);
+    return getAllMaps();
+  }
+  throw new Error('Некорректный формат карты JSON');
+}
+
+export function resetMapsToDefault(): GameMap[] {
+  try {
+    localStorage.removeItem('agent_battle_custom_maps');
+  } catch {}
+  return MAP_LIST;
+}
+
 export function getNextMap(currentMapId: MapId): GameMap {
   const all = getAllMaps();
   const currentIndex = all.findIndex((m) => m.id === currentMapId);
