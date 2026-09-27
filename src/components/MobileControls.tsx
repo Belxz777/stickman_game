@@ -75,7 +75,7 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
               onMouseUp={() => setKey('p2', 'left', false)}
               className="w-12 h-12 rounded-xl bg-red-600/70 active:bg-red-500 border border-red-400 flex items-center justify-center text-white shadow-lg active:scale-90 transition"
             >
-              <ArrowLeft className="w-6 h-6" />
+              <ArrowLeft className="w-6 h-6" />ну
             </button>
             <button
               onTouchStart={() => setKey('p2', 'right', true)}
